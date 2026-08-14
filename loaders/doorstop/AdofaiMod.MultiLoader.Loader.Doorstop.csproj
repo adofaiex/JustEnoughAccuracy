@@ -13,8 +13,10 @@
     <Copyright>Copyright © 2026 Your Name</Copyright>
     <OutputPath>..\..\bin\$(Configuration)\loaders\doorstop\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <GameExePath>GAME_EXE_PATH_PLACEHOLDER</GameExePath>
-    <ManagedAssembliesDir Condition="'$(GameExePath)' != '' AND '$(GameExePath)' != 'GAME_EXE_PATH_PLACEHOLDER'">$([System.IO.Path]::GetDirectoryName($(GameExePath)))\$([System.IO.Path]::GetFileNameWithoutExtension($(GameExePath)))_Data\Managed</ManagedAssembliesDir>
+    <!-- Uses the GameExePath_DOORSTOPFinal path resolved from .env (see Directory.Build.props).
+         You can still override GameExePath here to hard-code a path. -->
+    <GameExePath>$(GameExePath_DOORSTOPFinal)</GameExePath>
+    <ManagedAssembliesDir Condition="'$(GameExePath)' != ''">$([System.IO.Path]::GetDirectoryName($(GameExePath)))\$([System.IO.Path]::GetFileNameWithoutExtension($(GameExePath)))_Data\Managed</ManagedAssembliesDir>
   </PropertyGroup>
 
   <Import Project="..\..\ADOFAIMod.targets" Condition="Exists('..\..\ADOFAIMod.targets')" />

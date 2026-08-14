@@ -13,10 +13,6 @@
       "longName": "version",
       "shortName": "v"
     },
-    "GameExePath": {
-      "longName": "game-path",
-      "shortName": "g"
-    },
     "UmmLoader": {
       "longName": "umm",
       "shortName": "um"

@@ -16,8 +16,8 @@ namespace AdofaiMod.MultiLoader.Loaders
             _settingsPath = Path.Combine("UserData", $"{ModId}.json");
         }
 
-        public string ModId => _mod.Assembly.GetName().Name ?? "AdofaiMod";
-        public string ModVersion => _mod.Assembly.GetName().Version?.ToString() ?? "1.0.0";
+        public string ModId => _mod.MelonAssembly.Assembly.GetName().Name ?? "AdofaiMod";
+        public string ModVersion => _mod.MelonAssembly.Assembly.GetName().Version?.ToString() ?? "1.0.0";
         public string ModPath => Directory.GetCurrentDirectory();
 
         public void Log(string message) => MelonLogger.Msg(message);

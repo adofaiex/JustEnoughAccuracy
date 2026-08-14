@@ -45,17 +45,24 @@ ProjectRoot/
 
 - .NET SDK 6.0 或更高版本
 - A Dance of Fire and Ice (Steam)
-- 游戏目录中安装了一个或多个支持的加载器
+
+> [!NOTE]
+> 加载器依赖（MelonLoader、BepInEx、UnityModManager、Harmony）已内置在模板的
+> `lib/ModManager/` 中，构建**无需**先安装任何加载器。你只需在 `.env` 中配置
+> 游戏路径，供项目引用 Unity 引擎和游戏程序集。
 
 ## 安装模板
 
 ```bash
-# 从本地 NuGet 包安装
-dotnet new install path/to/AdofaiMod.MultiLoader.1.0.0.nupkg
+# 从本地仓库目录安装（推荐）
+dotnet new install path/to/ADOFAIMod.MultiLoader
 
-# 或从本地仓库目录安装
-dotnet new install path/to/AdofaiMod.MultiLoader
+# 或从打包的 NuGet 包安装
+dotnet pack path/to/AdofaiMod.MultiLoader.Template.csproj -o path/to/dist
+dotnet new install path/to/dist/AdofaiMod.MultiLoader.1.0.0.nupkg
 ```
+
+模板安装后名为 `adofaiml`。卸载用 `dotnet new uninstall ADOFAIMod.MultiLoader`。
 
 ## 创建项目
 
@@ -63,14 +70,34 @@ dotnet new install path/to/AdofaiMod.MultiLoader
 
 ```bash
 # 全部四个加载器（默认）
-dotnet new adofaiml -n MyMod -g "C:\Games\ADOFAI\A Dance of Fire and Ice.exe"
+dotnet new adofaiml -n MyMod
 
 # 选择部分加载器（关闭不需要的）
-dotnet new adofaiml -n MyMod --bepinex false --doorstop false -g "C:\Games\ADOFAI\A Dance of Fire and Ice.exe"
+dotnet new adofaiml -n MyMod --bepinex false --doorstop false
 
 # 指定作者和描述
-dotnet new adofaiml -n MyMod -a "YourName" -d "我的第一个 ADOFAI Mod" -g "path/to/game.exe"
+dotnet new adofaiml -n MyMod -a "YourName" -d "我的第一个 ADOFAI Mod"
 ```
+
+### 配置游戏路径（`.env`）
+
+游戏路径从项目根目录的 `.env` 文件读取（该文件已被 git 忽略，本机路径不会进
+版本库）：
+
+```bash
+# 复制示例文件并填写路径
+cp .env.example .env
+
+# .env
+ADOFAI_GAME_PATH=C:\Games\ADOFAI\ADanceOfFireAndIce.exe   # 默认（所有加载器）
+ADOFAI_GAME_PATH_UMM=...\ADanceOfFireAndIce.exe            # 仅 UMM
+ADOFAI_GAME_PATH_ML=...\ADanceOfFireAndIce.exe             # 仅 MelonLoader
+ADOFAI_GAME_PATH_BEPINEX=...\ADanceOfFireAndIce.exe        # 仅 BepInEx
+ADOFAI_GAME_PATH_DOORSTOP=...\ADanceOfFireAndIce.exe       # 仅 Doorstop
+```
+
+某个加载器未配置自己的 key 时，会回退到 `ADOFAI_GAME_PATH`，因此如果只用一个
+游戏安装，写一个默认值即可。
 
 ### Visual Studio / JetBrains Rider
 
@@ -82,7 +109,6 @@ dotnet new adofaiml -n MyMod -a "YourName" -d "我的第一个 ADOFAI Mod" -g "p
 | 短参数 | 长参数 | 说明 |
 |---|---|---|
 | `-n` | `--name` | 项目名称（同时也是 Mod 名称） |
-| `-g` | `--game-path` | 游戏可执行文件路径（构建必需） |
 | `-a` | `--author` | 作者名称 |
 | `-d` | `--description` | Mod 描述 |
 | `-v` | `--version` | 初始版本号（默认：1.0.0） |
@@ -93,16 +119,37 @@ dotnet new adofaiml -n MyMod -a "YourName" -d "我的第一个 ADOFAI Mod" -g "p
 
 ## 构建与部署
 
-在 `.csproj` 文件中设置 `GameExePath`（或通过 `-p` 参数传入），然后：
+### 游戏路径（`GameExePath`）
+
+各加载器的游戏路径从项目根目录的 **`.env`** 文件（已被 git 忽略）分别解析：
+
+| Key | 用于 |
+|---|---|
+| `ADOFAI_GAME_PATH` | 默认——核心项目以及未配置专用 key 的加载器 |
+| `ADOFAI_GAME_PATH_UMM` | UMM 加载器 |
+| `ADOFAI_GAME_PATH_ML` | MelonLoader |
+| `ADOFAI_GAME_PATH_BEPINEX` | BepInEx |
+| `ADOFAI_GAME_PATH_DOORSTOP` | Doorstop |
+
+每个加载器的解析顺序：自身 `.env` key → `ADOFAI_GAME_PATH` →
+`ADOFAI_GAME_PATH_<加载器>` 环境变量 → `-p:GameExePath=...`。
+
+这样可以让每个加载器指向不同的游戏安装（例如不同的 ADOFAI 版本），同时所有
+路径都不进 git。
+
+### 构建 + 部署 + 启动
 
 ```bash
-# Debug：构建 + 部署到游戏目录 + 启动游戏
-dotnet build -p:Loader=UMM
-dotnet build -p:Loader=ML
-dotnet build -p:Loader=BepInEx
-dotnet build -p:Loader=Doorstop
+# 构建全部，部署到指定加载器的游戏目录，并启动游戏
+dotnet build -p:Loader=UMM          # UMM → 游戏目录/Mods/{Mod名称}/
+dotnet build -p:Loader=ML           # Melon → 游戏目录/Mods/
+dotnet build -p:Loader=BepInEx      # BepInEx → 游戏目录/BepInEx/plugins/{Mod名称}/
+dotnet build -p:Loader=Doorstop     # Doorstop → 游戏目录/
 
-# Release：仅构建，输出到 out/
+# 构建 + 部署，但不启动游戏
+dotnet build -p:Loader=UMM -p:AutoLaunchGame=false
+
+# Release：仅构建（不部署/启动），扁平输出到 out/
 dotnet build -c Release
 ```
 

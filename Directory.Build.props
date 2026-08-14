@@ -1,0 +1,54 @@
+<Project>
+
+  <!--
+    Game executable path, applied to every project in the solution.
+
+    Paths are read from a local .env file at the project root (git-ignored, so
+    your machine-specific game installs never end up in version control):
+
+        # .env
+        ADOFAI_GAME_PATH=C:\Games\ADOFAI\ADanceOfFireAndIce.exe            # default (all loaders)
+        ADOFAI_GAME_PATH_UMM=...\ADanceOfFireAndIce.exe                     # UMM loader
+        ADOFAI_GAME_PATH_ML=...\ADanceOfFireAndIce.exe                      # MelonLoader
+        ADOFAI_GAME_PATH_BEPINEX=...\ADanceOfFireAndIce.exe                 # BepInEx
+        ADOFAI_GAME_PATH_DOORSTOP=...\ADanceOfFireAndIce.exe                # Doorstop
+
+    Each loader uses its own key, falling back to ADOFAI_GAME_PATH, then to the
+    ADOFAI_GAME_PATH_<LOADER> environment variable, then to -p:GameExePath=...
+
+    Building with -p:Loader=UMM deploys + launches that loader's game path.
+  -->
+  <PropertyGroup>
+    <GameExePathEnvContent Condition="Exists('$(MSBuildThisFileDirectory).env')">$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory).env'))</GameExePathEnvContent>
+
+    <!-- Extract a value for KEY from the .env content (empty if absent). -->
+    <GameExePath_Default>$([System.Text.RegularExpressions.Regex]::Match('$(GameExePathEnvContent)', '(?m)^[ \t]*ADOFAI_GAME_PATH[ \t]*=[ \t]*([^\r\n]+)').Groups[1].Value.Trim())</GameExePath_Default>
+    <GameExePath_UMM>$([System.Text.RegularExpressions.Regex]::Match('$(GameExePathEnvContent)', '(?m)^[ \t]*ADOFAI_GAME_PATH_UMM[ \t]*=[ \t]*([^\r\n]+)').Groups[1].Value.Trim())</GameExePath_UMM>
+    <GameExePath_ML>$([System.Text.RegularExpressions.Regex]::Match('$(GameExePathEnvContent)', '(?m)^[ \t]*ADOFAI_GAME_PATH_ML[ \t]*=[ \t]*([^\r\n]+)').Groups[1].Value.Trim())</GameExePath_ML>
+    <GameExePath_BEPINEX>$([System.Text.RegularExpressions.Regex]::Match('$(GameExePathEnvContent)', '(?m)^[ \t]*ADOFAI_GAME_PATH_BEPINEX[ \t]*=[ \t]*([^\r\n]+)').Groups[1].Value.Trim())</GameExePath_BEPINEX>
+    <GameExePath_DOORSTOP>$([System.Text.RegularExpressions.Regex]::Match('$(GameExePathEnvContent)', '(?m)^[ \t]*ADOFAI_GAME_PATH_DOORSTOP[ \t]*=[ \t]*([^\r\n]+)').Groups[1].Value.Trim())</GameExePath_DOORSTOP>
+
+    <!-- Per-loader resolution: <loader key> -> default key -> env var -> -p -->
+    <GameExePath_UMMFinal Condition="'$(GameExePath_UMM)' != ''">$(GameExePath_UMM)</GameExePath_UMMFinal>
+    <GameExePath_UMMFinal Condition="'$(GameExePath_UMM)' == ''">$(GameExePath_Default)</GameExePath_UMMFinal>
+    <GameExePath_UMMFinal Condition="'$(GameExePath_UMMFinal)' == ''">$(ADOFAI_GAME_PATH_UMM)</GameExePath_UMMFinal>
+    <GameExePath_UMMFinal Condition="'$(GameExePath_UMMFinal)' == ''">$(ADOFAI_GAME_PATH)</GameExePath_UMMFinal>
+
+    <GameExePath_MLFinal Condition="'$(GameExePath_ML)' != ''">$(GameExePath_ML)</GameExePath_MLFinal>
+    <GameExePath_MLFinal Condition="'$(GameExePath_ML)' == ''">$(GameExePath_Default)</GameExePath_MLFinal>
+    <GameExePath_MLFinal Condition="'$(GameExePath_MLFinal)' == ''">$(ADOFAI_GAME_PATH_ML)</GameExePath_MLFinal>
+    <GameExePath_MLFinal Condition="'$(GameExePath_MLFinal)' == ''">$(ADOFAI_GAME_PATH)</GameExePath_MLFinal>
+
+    <GameExePath_BEPINEXFinal Condition="'$(GameExePath_BEPINEX)' != ''">$(GameExePath_BEPINEX)</GameExePath_BEPINEXFinal>
+    <GameExePath_BEPINEXFinal Condition="'$(GameExePath_BEPINEX)' == ''">$(GameExePath_Default)</GameExePath_BEPINEXFinal>
+    <GameExePath_BEPINEXFinal Condition="'$(GameExePath_BEPINEXFinal)' == ''">$(ADOFAI_GAME_PATH_BEPINEX)</GameExePath_BEPINEXFinal>
+    <GameExePath_BEPINEXFinal Condition="'$(GameExePath_BEPINEXFinal)' == ''">$(ADOFAI_GAME_PATH)</GameExePath_BEPINEXFinal>
+
+    <GameExePath_DOORSTOPFinal Condition="'$(GameExePath_DOORSTOP)' != ''">$(GameExePath_DOORSTOP)</GameExePath_DOORSTOPFinal>
+    <GameExePath_DOORSTOPFinal Condition="'$(GameExePath_DOORSTOP)' == ''">$(GameExePath_Default)</GameExePath_DOORSTOPFinal>
+    <GameExePath_DOORSTOPFinal Condition="'$(GameExePath_DOORSTOPFinal)' == ''">$(ADOFAI_GAME_PATH_DOORSTOP)</GameExePath_DOORSTOPFinal>
+    <GameExePath_DOORSTOPFinal Condition="'$(GameExePath_DOORSTOPFinal)' == ''">$(ADOFAI_GAME_PATH)</GameExePath_DOORSTOPFinal>
+  </PropertyGroup>
+
+
+</Project>

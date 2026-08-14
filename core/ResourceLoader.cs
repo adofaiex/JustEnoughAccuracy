@@ -47,7 +47,7 @@ namespace AdofaiMod.MultiLoader
             {
                 var data = File.ReadAllBytes(path);
                 var tex = new Texture2D(2, 2);
-                if (tex.LoadImage(data))
+                if (ImageConversion.LoadImage(tex, data))
                     return tex;
                 Main.Handler?.Error($"Failed to decode image: {fileName}");
                 return null;

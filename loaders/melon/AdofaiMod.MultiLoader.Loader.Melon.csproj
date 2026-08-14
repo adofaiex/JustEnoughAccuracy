@@ -11,10 +11,13 @@
     <Company>Your Name</Company>
     <Version>1.0.0</Version>
     <Copyright>Copyright © 2026 Your Name</Copyright>
+    <ModManagerDir>$(ProjectDir)../../lib/ModManager/</ModManagerDir>
     <OutputPath>..\..\bin\$(Configuration)\loaders\melon\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <GameExePath>GAME_EXE_PATH_PLACEHOLDER</GameExePath>
-    <ManagedAssembliesDir Condition="'$(GameExePath)' != '' AND '$(GameExePath)' != 'GAME_EXE_PATH_PLACEHOLDER'">$([System.IO.Path]::GetDirectoryName($(GameExePath)))\$([System.IO.Path]::GetFileNameWithoutExtension($(GameExePath)))_Data\Managed</ManagedAssembliesDir>
+    <!-- Uses the GameExePath_MLFinal path resolved from .env (see Directory.Build.props).
+         You can still override GameExePath here to hard-code a path. -->
+    <GameExePath>$(GameExePath_MLFinal)</GameExePath>
+    <ManagedAssembliesDir Condition="'$(GameExePath)' != ''">$([System.IO.Path]::GetDirectoryName($(GameExePath)))\$([System.IO.Path]::GetFileNameWithoutExtension($(GameExePath)))_Data\Managed</ManagedAssembliesDir>
   </PropertyGroup>
 
   <Import Project="..\..\ADOFAIMod.targets" Condition="Exists('..\..\ADOFAIMod.targets')" />
@@ -25,13 +28,13 @@
 
   <ItemGroup>
     <Reference Include="MelonLoader">
-      <HintPath>$(ManagedAssembliesDir)\..\MelonLoader\MelonLoader.dll</HintPath>
+      <HintPath>$(ModManagerDir)MelonLoader\net472\MelonLoader.dll</HintPath>
     </Reference>
     <Reference Include="Newtonsoft.Json">
       <HintPath>$(ManagedAssembliesDir)\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="0Harmony">
-      <HintPath>$(ManagedAssembliesDir)\..\MelonLoader\0Harmony.dll</HintPath>
+      <HintPath>$(ModManagerDir)0Harmony.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine">
       <HintPath>$(ManagedAssembliesDir)\UnityEngine.dll</HintPath>

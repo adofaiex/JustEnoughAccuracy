@@ -31,7 +31,7 @@ namespace AdofaiMod.MultiLoader
             else
             {
                 Handler.Log("Mod disabled");
-                Harmony.UnpatchAll(Harmony.Id);
+                Harmony.UnpatchAll();
             }
         }
     }

@@ -14,8 +14,9 @@
     <OutputPath>..\bin\$(Configuration)\core\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <IsCoreProject>true</IsCoreProject>
-    <GameExePath>GAME_EXE_PATH_PLACEHOLDER</GameExePath>
-    <ManagedAssembliesDir Condition="'$(GameExePath)' != '' AND '$(GameExePath)' != 'GAME_EXE_PATH_PLACEHOLDER'">$([System.IO.Path]::GetDirectoryName($(GameExePath)))\$([System.IO.Path]::GetFileNameWithoutExtension($(GameExePath)))_Data\Managed</ManagedAssembliesDir>
+    <!-- Core uses the default game path from .env (see Directory.Build.props). -->
+    <GameExePath>$(GameExePath_Default)</GameExePath>
+    <ManagedAssembliesDir Condition="'$(GameExePath)' != ''">$([System.IO.Path]::GetDirectoryName($(GameExePath)))\$([System.IO.Path]::GetFileNameWithoutExtension($(GameExePath)))_Data\Managed</ManagedAssembliesDir>
   </PropertyGroup>
 
   <Import Project="..\ADOFAIMod.targets" Condition="Exists('..\ADOFAIMod.targets')" />
@@ -36,6 +37,9 @@
     </Reference>
     <Reference Include="UnityEngine.TextRenderingModule">
       <HintPath>$(ManagedAssembliesDir)\UnityEngine.TextRenderingModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ImageConversionModule">
+      <HintPath>$(ManagedAssembliesDir)\UnityEngine.ImageConversionModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.UI">
       <HintPath>$(ManagedAssembliesDir)\UnityEngine.UI.dll</HintPath>

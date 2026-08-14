@@ -1,7 +1,12 @@
 {
   "$schema": "http://json.schemastore.org/template",
   "author": "adofaiex",
-  "classifications": ["ADOFAI", "Mod", "Game", "Multi-Loader"],
+  "classifications": [
+    "ADOFAI",
+    "Mod",
+    "Game",
+    "Multi-Loader"
+  ],
   "identity": "AdofaiMod.MultiLoader",
   "name": "ADOFAI Multi-Loader Mod Template",
   "shortName": "adofaiml",
@@ -33,13 +38,6 @@
       "defaultValue": "1.0.0",
       "description": "Initial version"
     },
-    "GameExePath": {
-      "type": "parameter",
-      "datatype": "text",
-      "replaces": "GAME_EXE_PATH_PLACEHOLDER",
-      "defaultValue": "",
-      "description": "Game executable path (for assembly references and auto-deploy)"
-    },
     "UmmLoader": {
       "type": "parameter",
       "datatype": "bool",
@@ -69,20 +67,36 @@
     {
       "modifiers": [
         {
+          "exclude": [
+            "*.Template.csproj",
+            ".template.config/**",
+            "init.*"
+          ]
+        },
+        {
           "condition": "!(UmmLoader)",
-          "exclude": ["loaders/umm/**", "Info.json"]
+          "exclude": [
+            "loaders/umm/**",
+            "Info.json"
+          ]
         },
         {
           "condition": "!(MelonLoader)",
-          "exclude": ["loaders/melon/**"]
+          "exclude": [
+            "loaders/melon/**"
+          ]
         },
         {
           "condition": "!(BepInExLoader)",
-          "exclude": ["loaders/bepinex/**"]
+          "exclude": [
+            "loaders/bepinex/**"
+          ]
         },
         {
           "condition": "!(DoorstopLoader)",
-          "exclude": ["loaders/doorstop/**"]
+          "exclude": [
+            "loaders/doorstop/**"
+          ]
         }
       ]
     }

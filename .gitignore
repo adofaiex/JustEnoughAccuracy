@@ -68,3 +68,6 @@ $RECYCLE.BIN/
 
 # Other files
 TestModProject
+
+# Local game path (machine-specific, do not commit)
+.env

@@ -45,17 +45,25 @@ Loader project (e.g. loaders/umm/)
 
 - .NET SDK 6.0 or later
 - A Dance of Fire and Ice (Steam)
-- One or more of the supported mod loaders installed in the game directory
+
+> [!NOTE]
+> Loader dependencies (MelonLoader, BepInEx, UnityModManager, Harmony) are bundled
+> in the template's `lib/ModManager/`, so you do **not** need to install any loader
+> to build. You only need the game's `GameExePath` so the project can reference the
+> Unity engine and game assemblies.
 
 ## Install the Template
 
 ```bash
-# From a local NuGet package
-dotnet new install path/to/AdofaiMod.MultiLoader.1.0.0.nupkg
+# From a local copy of the repository (recommended)
+dotnet new install path/to/ADOFAIMod.MultiLoader
 
-# Or from a local copy of the repository
-dotnet new install path/to/AdofaiMod.MultiLoader
+# Or from a packed NuGet package
+dotnet pack path/to/AdofaiMod.MultiLoader.Template.csproj -o path/to/dist
+dotnet new install path/to/dist/AdofaiMod.MultiLoader.1.0.0.nupkg
 ```
+
+The template is installed as `adofaiml`. Uninstall with `dotnet new uninstall ADOFAIMod.MultiLoader`.
 
 ## Create a Project
 
@@ -63,14 +71,34 @@ dotnet new install path/to/AdofaiMod.MultiLoader
 
 ```bash
 # All four loaders (default)
-dotnet new adofaiml -n MyMod -g "C:\Games\ADOFAI\A Dance of Fire and Ice.exe"
+dotnet new adofaiml -n MyMod
 
 # Select specific loaders (disable the ones you don't need)
-dotnet new adofaiml -n MyMod --bepinex false --doorstop false -g "C:\Games\ADOFAI\A Dance of Fire and Ice.exe"
+dotnet new adofaiml -n MyMod --bepinex false --doorstop false
 
 # Specify author and description
-dotnet new adofaiml -n MyMod -a "YourName" -d "My first ADOFAI mod" -g "path/to/game.exe"
+dotnet new adofaiml -n MyMod -a "YourName" -d "My first ADOFAI mod"
 ```
+
+### Point it at your game (`.env`)
+
+Game paths are read from a git-ignored `.env` file at the project root, so your
+local installs never end up in version control:
+
+```bash
+# copy the example and fill in your path(s)
+cp .env.example .env
+
+# .env
+ADOFAI_GAME_PATH=C:\Games\ADOFAI\ADanceOfFireAndIce.exe   # default (all loaders)
+ADOFAI_GAME_PATH_UMM=...\ADanceOfFireAndIce.exe            # UMM only
+ADOFAI_GAME_PATH_ML=...\ADanceOfFireAndIce.exe             # MelonLoader only
+ADOFAI_GAME_PATH_BEPINEX=...\ADanceOfFireAndIce.exe        # BepInEx only
+ADOFAI_GAME_PATH_DOORSTOP=...\ADanceOfFireAndIce.exe       # Doorstop only
+```
+
+Each loader falls back to `ADOFAI_GAME_PATH` when its own key is empty, so a
+single default is enough if you use one game install.
 
 ### Visual Studio / JetBrains Rider
 
@@ -82,7 +110,6 @@ After installing the template, create a new project and search for "ADOFAI" or
 | Short | Long | Description |
 |---|---|---|
 | `-n` | `--name` | Project name (becomes the mod name) |
-| `-g` | `--game-path` | Game executable path (required for building) |
 | `-a` | `--author` | Author name |
 | `-d` | `--description` | Mod description |
 | `-v` | `--version` | Initial version (default: 1.0.0) |
@@ -93,16 +120,38 @@ After installing the template, create a new project and search for "ADOFAI" or
 
 ## Build and Deploy
 
-Set `GameExePath` in the `.csproj` file (or pass it with `-p`), then:
+### Game path (`GameExePath`)
+
+Game paths are resolved per loader from the git-ignored **`.env`** file at the
+project root:
+
+| Key | Used by |
+|---|---|
+| `ADOFAI_GAME_PATH` | Default — the core project and any loader without its own key |
+| `ADOFAI_GAME_PATH_UMM` | UMM loader |
+| `ADOFAI_GAME_PATH_ML` | MelonLoader |
+| `ADOFAI_GAME_PATH_BEPINEX` | BepInEx |
+| `ADOFAI_GAME_PATH_DOORSTOP` | Doorstop |
+
+Resolution order for each loader: its own `.env` key → `ADOFAI_GAME_PATH` →
+`ADOFAI_GAME_PATH_<LOADER>` environment variable → `-p:GameExePath=...`.
+
+This lets you point each loader at a different game install (e.g. separate ADOFAI
+versions) while keeping every path out of git.
+
+### Build + deploy + launch
 
 ```bash
-# Debug: build + deploy to game directory + launch
-dotnet build -p:Loader=UMM
-dotnet build -p:Loader=ML
-dotnet build -p:Loader=BepInEx
-dotnet build -p:Loader=Doorstop
+# Build all, deploy to the requested loader's game, and launch it
+dotnet build -p:Loader=UMM          # UMM  → GameDir/Mods/{ModName}/
+dotnet build -p:Loader=ML           # Melon → GameDir/Mods/
+dotnet build -p:Loader=BepInEx      # BepInEx → GameDir/BepInEx/plugins/{ModName}/
+dotnet build -p:Loader=Doorstop     # Doorstop → GameDir/
 
-# Release: build only, outputs to out/
+# Build + deploy but do NOT launch the game
+dotnet build -p:Loader=UMM -p:AutoLaunchGame=false
+
+# Release: build only (no deploy/launch), outputs flat to out/
 dotnet build -c Release
 ```
 

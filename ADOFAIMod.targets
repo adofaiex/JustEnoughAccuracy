@@ -2,43 +2,49 @@
 
   <PropertyGroup>
     <Loader></Loader>
+    <!-- Single flat output dir at the project root: all DLLs (Core + Loaders)
+         are placed together in <root>/out/, not per-project subfolders. -->
+    <RootOutDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)out'))\</RootOutDir>
   </PropertyGroup>
 
   <!-- build validation -->
   <Target Name="ValidateGameExePath" BeforeTargets="Build">
-    <Error Text="GameExePath is required. Set in csproj or pass -p:GameExePath=..."
+    <Error Text="GameExePath is required. Set in Directory.Build.props, in a .csproj, or pass -p:GameExePath=..."
            Condition="'$(GameExePath)' == '' OR '$(GameExePath)' == 'GAME_EXE_PATH_PLACEHOLDER'" />
     <Error Text="Game executable not found: $(GameExePath)"
            Condition="'$(GameExePath)' != '' AND !Exists('$(GameExePath)')" />
   </Target>
 
-  <!-- CopyToOut for both core and loader projects -->
+  <!-- CopyToOut: collect all DLLs flat into <root>/out/ after every build, then
+       deploy + optionally launch when a Loader is requested (-p:Loader=UMM|ML|BepInEx|Doorstop).
+       Deployment is merged into this target because it is the one hook that reliably
+       runs after Build (including incremental builds). -->
   <Target Name="CopyToOut" AfterTargets="Build">
     <PropertyGroup>
       <IsLoader>false</IsLoader>
       <IsLoader Condition="$(AssemblyName.Contains('.Loader.'))">true</IsLoader>
     </PropertyGroup>
 
-    <MakeDir Directories="$(ProjectDir)out/" />
+    <MakeDir Directories="$(RootOutDir)" />
 
     <!-- own dll -->
     <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll"
-          DestinationFolder="$(ProjectDir)out/" SkipUnchangedFiles="true" />
+          DestinationFolder="$(RootOutDir)" SkipUnchangedFiles="true" />
     <Copy SourceFiles="$(OutputPath)$(AssemblyName).pdb"
-          DestinationFolder="$(ProjectDir)out/"
+          DestinationFolder="$(RootOutDir)"
           Condition="Exists('$(OutputPath)$(AssemblyName).pdb')" SkipUnchangedFiles="true" />
 
     <!-- loader projects also bring core.dll + extras -->
     <Copy SourceFiles="$(ProjectDir)../../bin/$(Configuration)/core/AdofaiMod.MultiLoader.Core.dll"
-          DestinationFolder="$(ProjectDir)out/"
+          DestinationFolder="$(RootOutDir)"
           Condition="'$(IsLoader)' == 'true' AND Exists('$(ProjectDir)../../bin/$(Configuration)/core/AdofaiMod.MultiLoader.Core.dll')"
           SkipUnchangedFiles="true" />
     <Copy SourceFiles="$(ProjectDir)../../Info.json"
-          DestinationFolder="$(ProjectDir)out/"
+          DestinationFolder="$(RootOutDir)"
           Condition="$(AssemblyName.EndsWith('Loader.UMM')) AND Exists('$(ProjectDir)../../Info.json')"
           SkipUnchangedFiles="true" />
     <Copy SourceFiles="$(ProjectDir)doorstop_config.ini"
-          DestinationFolder="$(ProjectDir)out/"
+          DestinationFolder="$(RootOutDir)"
           Condition="Exists('$(ProjectDir)doorstop_config.ini')"
           SkipUnchangedFiles="true" />
 
@@ -46,23 +52,27 @@
     <ItemGroup Condition="'$(IsCoreProject)' == 'true'">
       <ResourceFiles Include="$(ProjectDir)Resources\**\*" Exclude="$(ProjectDir)Resources\**\*\" />
     </ItemGroup>
-    <MakeDir Directories="$(ProjectDir)out/Resources/" Condition="'$(IsCoreProject)' == 'true'" />
-    <Copy SourceFiles="@(ResourceFiles)" DestinationFolder="$(ProjectDir)out/Resources/%(RecursiveDir)"
+    <MakeDir Directories="$(RootOutDir)Resources\" Condition="'$(IsCoreProject)' == 'true'" />
+    <Copy SourceFiles="@(ResourceFiles)" DestinationFolder="$(RootOutDir)Resources\%(RecursiveDir)"
           Condition="'$(IsCoreProject)' == 'true'" SkipUnchangedFiles="true" />
 
     <Message Text="[$(AssemblyName)] → out/" Importance="high" />
-  </Target>
 
-  <!-- Deploy: -p:Loader=UMM|ML|BepInEx|Doorstop -->
-  <Target Name="ValidateLoader" BeforeTargets="DeployAndLaunch"
-          Condition="'$(Loader)' != '' AND '$(Loader)' != 'UMM' AND '$(Loader)' != 'ML'
-                     AND '$(Loader)' != 'BepInEx' AND '$(Loader)' != 'Doorstop'">
-    <Error Text="Invalid Loader '$(Loader)'. Valid: UMM, ML, BepInEx, Doorstop" />
-  </Target>
+    <!-- ── Deploy + launch (only when a Loader was requested) ────────────── -->
+    <Error Condition="'$(Loader)' != '' AND '$(Loader)' != 'UMM' AND '$(Loader)' != 'ML'
+                      AND '$(Loader)' != 'BepInEx' AND '$(Loader)' != 'Doorstop'"
+           Text="Invalid Loader '$(Loader)'. Valid: UMM, ML, BepInEx, Doorstop" />
 
-  <Target Name="DeployAndLaunch" AfterTargets="CopyToOut"
-          Condition="'$(Loader)' != '' AND '$(GameExePath)' != '' AND '$(GameExePath)' != 'GAME_EXE_PATH_PLACEHOLDER' AND Exists('$(GameExePath)')">
-    <PropertyGroup>
+    <!-- Only the loader project matching -p:Loader= performs deployment, so the
+         mod is deployed exactly once with the correct per-loader GameExePath. -->
+    <PropertyGroup Condition="'$(Loader)' != '' AND Exists('$(GameExePath)')">
+      <LoaderSuffix Condition="'$(Loader)' == 'UMM'">Loader.UMM</LoaderSuffix>
+      <LoaderSuffix Condition="'$(Loader)' == 'ML'">Loader.Melon</LoaderSuffix>
+      <LoaderSuffix Condition="'$(Loader)' == 'BepInEx'">Loader.BepInEx</LoaderSuffix>
+      <LoaderSuffix Condition="'$(Loader)' == 'Doorstop'">Loader.Doorstop</LoaderSuffix>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Loader)' != '' AND $(AssemblyName.EndsWith('$(LoaderSuffix)')) AND Exists('$(GameExePath)')">
       <GameDir>$([System.IO.Path]::GetDirectoryName($(GameExePath)))</GameDir>
       <ModName>$(AssemblyName.Replace('.Core','').Replace('.Loader.UMM','').Replace('.Loader.Melon','').Replace('.Loader.BepInEx','').Replace('.Loader.Doorstop',''))</ModName>
       <DeployDir Condition="'$(Loader)' == 'UMM'">$(GameDir)/Mods/$(ModName)/</DeployDir>
@@ -72,18 +82,20 @@
       <IsWindows Condition="'$(OS)' == 'Windows_NT'">true</IsWindows>
     </PropertyGroup>
 
-    <ItemGroup>
-      <DeployFiles Include="$(ProjectDir)out\*.dll;$(ProjectDir)out\*.json;$(ProjectDir)out\*.ini" />
-      <DeployResources Include="$(ProjectDir)out\Resources\**\*" Exclude="$(ProjectDir)out\Resources\**\*\" />
+    <ItemGroup Condition="'$(Loader)' != '' AND $(AssemblyName.EndsWith('$(LoaderSuffix)')) AND '$(DeployDir)' != ''">
+      <DeployFiles Include="$(RootOutDir)*.dll;$(RootOutDir)*.json;$(RootOutDir)*.ini" />
+      <DeployResources Include="$(RootOutDir)Resources\**\*" Exclude="$(RootOutDir)Resources\**\*\" />
     </ItemGroup>
 
-    <MakeDir Directories="$(DeployDir)Resources/" />
-    <Copy SourceFiles="@(DeployFiles)" DestinationFolder="$(DeployDir)" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(DeployResources)" DestinationFolder="$(DeployDir)Resources/%(RecursiveDir)" SkipUnchangedFiles="true" />
-    <Message Text="Deployed [$(Loader)] → $(DeployDir)" Importance="high" />
+    <MakeDir Directories="$(DeployDir)Resources/" Condition="$(AssemblyName.EndsWith('$(LoaderSuffix)')) AND '$(DeployDir)' != ''" />
+    <Copy SourceFiles="@(DeployFiles)" DestinationFolder="$(DeployDir)" Condition="$(AssemblyName.EndsWith('$(LoaderSuffix)')) AND '$(DeployDir)' != ''" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(DeployResources)" DestinationFolder="$(DeployDir)Resources/%(RecursiveDir)" Condition="$(AssemblyName.EndsWith('$(LoaderSuffix)')) AND '$(DeployDir)' != ''" SkipUnchangedFiles="true" />
+    <Message Text="Deployed [$(Loader)] → $(DeployDir)" Condition="$(AssemblyName.EndsWith('$(LoaderSuffix)')) AND '$(DeployDir)' != ''" Importance="high" />
 
-    <Exec Command="start &quot;&quot; &quot;$(GameExePath)&quot;" IgnoreExitCode="true" Condition="'$(IsWindows)' == 'true'" />
-    <Exec Command="nohup &quot;$(GameExePath)&quot; &gt; /dev/null 2&gt;&amp;1 &amp;" IgnoreExitCode="true" Condition="'$(IsWindows)' != 'true'" />
+    <Exec Command="start &quot;&quot; &quot;$(GameExePath)&quot;" IgnoreExitCode="true"
+          Condition="'$(IsWindows)' == 'true' AND '$(AutoLaunchGame)' != 'false' AND '$(DeployDir)' != ''" />
+    <Exec Command="nohup &quot;$(GameExePath)&quot; &gt; /dev/null 2&gt;&amp;1 &amp;" IgnoreExitCode="true"
+          Condition="'$(IsWindows)' != 'true' AND '$(AutoLaunchGame)' != 'false' AND '$(DeployDir)' != ''" />
   </Target>
 
 </Project>
