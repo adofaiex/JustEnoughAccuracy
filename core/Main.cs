@@ -30,8 +30,10 @@ namespace JustEnoughAccuracy
             }
 
             // Results screen visibility drives the button + data lifetime.
-            var resultsVisible = scrController.instance?.detailedResults != null
-                                 && scrController.instance.detailedResults.gameObject.activeSelf;
+            // Use the state machine (Won) instead of the (always-active) results
+            // GameObject so the button never shows in the editor.
+            var resultsVisible = scrController.instance != null
+                                 && scrController.instance.currentState == States.Won;
 
             if (resultsVisible)
             {
