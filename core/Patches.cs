@@ -22,6 +22,21 @@ namespace JustEnoughAccuracy
             }
         }
 
+        /// <summary>
+        /// Shows the browse button at the exact moment the official detailed
+        /// results appear. Tied to the real Show() so it can't misfire in the
+        /// editor or on transient state-machine states.
+        /// </summary>
+        [HarmonyPatch(typeof(DetailedResults), "Show")]
+        public static class DetailedResults_Show
+        {
+            public static void Postfix()
+            {
+                if (!Main.Settings.Enabled) return;
+                ResultsScreenButton.Show();
+            }
+        }
+
         [HarmonyPatch(typeof(scrHitTextMesh), nameof(scrHitTextMesh.Show))]
         public static class scrHitTextMesh_Show
         {

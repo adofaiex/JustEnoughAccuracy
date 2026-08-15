@@ -29,17 +29,16 @@ namespace JustEnoughAccuracy
                 return;
             }
 
-            // Results screen visibility drives the button + data lifetime.
-            // Use the state machine (Won) instead of the (always-active) results
-            // GameObject so the button never shows in the editor.
-            var resultsVisible = scrController.instance != null
-                                 && scrController.instance.currentState == States.Won;
+            // Showing is driven by a patch on DetailedResults.Show(), so the button
+            // only ever appears when the official results screen actually displays
+            // (never in the editor). Here we only detect when it goes away: scnGame
+            // deactivates the results GameObject on level reload/exit.
+            var ctl = scrController.instance;
+            var resultsVisible = ctl != null
+                                 && ctl.detailedResults != null
+                                 && ctl.detailedResults.gameObject.activeSelf;
 
-            if (resultsVisible)
-            {
-                ResultsScreenButton.Show();
-            }
-            else
+            if (!resultsVisible)
             {
                 ResultsScreenButton.Hide();
                 JePreviewer.Close();
