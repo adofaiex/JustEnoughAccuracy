@@ -16,7 +16,37 @@ namespace JustEnoughAccuracy
         public static void Show()
         {
             EnsureUI();
+            PositionNearResultsText();
             _canvas!.gameObject.SetActive(true);
+        }
+
+        /// <summary>
+        /// Places the button right below the official results text so it sits
+        /// next to the JEA summary line instead of floating at screen centre.
+        /// </summary>
+        private static void PositionNearResultsText()
+        {
+            if (_button == null || _canvas == null) return;
+
+            var ctl = scrController.instance;
+            if (ctl == null || ctl.detailedResults == null) return;
+
+            var textRect = ctl.detailedResults.textComponent.rectTransform;
+            if (textRect == null) return;
+
+            // Bottom edge of the results text, in world space, then to screen.
+            var corners = new Vector3[4];
+            textRect.GetWorldCorners(corners); // 0 BL, 1 TL, 2 TR, 3 BR
+            var bottomCenter = (corners[0] + corners[3]) * 0.5f;
+            var screenPos = RectTransformUtility.WorldToScreenPoint(null, bottomCenter);
+
+            // Screen point → this canvas' local coords (handles the scaler).
+            var canvasRect = _canvas.GetComponent<RectTransform>();
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, screenPos, null, out var localPoint))
+                return;
+
+            var btnRect = _button.GetComponent<RectTransform>();
+            btnRect.anchoredPosition = new Vector2(localPoint.x, localPoint.y - 14f);
         }
 
         public static void Hide()
@@ -34,7 +64,7 @@ namespace JustEnoughAccuracy
             Object.DontDestroyOnLoad(canvasObject);
             _canvas = canvasObject.AddComponent<Canvas>();
             _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            _canvas.sortingOrder = 29000;
+            _canvas.sortingOrder = 2147483647;
             var scaler = canvasObject.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);

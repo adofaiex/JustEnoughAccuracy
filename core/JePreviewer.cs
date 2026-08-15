@@ -273,7 +273,7 @@ namespace JustEnoughAccuracy
             UnityEngine.Object.DontDestroyOnLoad(canvasObject);
             _canvas = canvasObject.AddComponent<Canvas>();
             _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            _canvas.sortingOrder = 30000;
+            _canvas.sortingOrder = 2147483647;
             var scaler = canvasObject.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
