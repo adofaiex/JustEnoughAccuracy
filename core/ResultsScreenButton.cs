@@ -17,7 +17,8 @@ namespace JustEnoughAccuracy
         {
             EnsureUI();
             PositionNearResultsText();
-            _canvas!.gameObject.SetActive(true);
+            if (_canvas != null)
+                _canvas.gameObject.SetActive(true);
         }
 
         /// <summary>
@@ -68,16 +69,33 @@ namespace JustEnoughAccuracy
             if (_canvas != null)
                 return;
 
-            var canvasObject = new GameObject("JEA_ResultsButton");
-            Object.DontDestroyOnLoad(canvasObject);
+            // Host the button inside the SAME canvas that renders the results text so it
+            // sorts in the same render tree as the detail text (a standalone overlay
+            // canvas is NOT guaranteed to draw above it). overrideSorting keeps us on
+            // top of every sibling in that canvas.
+            var host = ResolveHostCanvas();
+            if (host == null)
+            {
+                // Results UI isn't up yet; the patch will re-Show() once it is.
+                return;
+            }
+
+            var canvasObject = new GameObject("JEA_ResultsButton", typeof(RectTransform));
             _canvas = canvasObject.AddComponent<Canvas>();
-            _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            _canvas.sortingOrder = 2147483647;
+            canvasObject.transform.SetParent(host.transform, false);
+            _canvas.overrideSorting = true;
+            // One below the previewer so the previewer always renders on top.
+            _canvas.sortingOrder = 2147483646;
             var scaler = canvasObject.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
             scaler.matchWidthOrHeight = 1f;
             canvasObject.AddComponent<GraphicRaycaster>();
+            var bridgeRect = (RectTransform)canvasObject.transform;
+            bridgeRect.anchorMin = Vector2.zero;
+            bridgeRect.anchorMax = Vector2.one;
+            bridgeRect.offsetMin = Vector2.zero;
+            bridgeRect.offsetMax = Vector2.zero;
 
             var btnObj = new GameObject("BrowseDetails", typeof(RectTransform));
             btnObj.transform.SetParent(canvasObject.transform, false);
@@ -111,6 +129,27 @@ namespace JustEnoughAccuracy
             _button.onClick.AddListener(JePreviewer.Open);
 
             _canvas.gameObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// Finds the canvas the official results text is actually rendered on. Preferring
+        /// the results text's own canvas over the generic HUD canvas, because the two are
+        /// NOT guaranteed to be the same object.
+        /// </summary>
+        private static Canvas? ResolveHostCanvas()
+        {
+            var ctl = scrController.instance;
+            if (ctl != null && ctl.detailedResults != null)
+            {
+                var textCanvas = ctl.detailedResults.textComponent?.canvas;
+                if (textCanvas != null)
+                    return textCanvas;
+            }
+
+            if (scrUIController.instance != null && scrUIController.instance.canvas != null)
+                return scrUIController.instance.canvas;
+
+            return null;
         }
     }
 }

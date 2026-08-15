@@ -267,10 +267,18 @@ namespace JustEnoughAccuracy
             EnsureSprites();
             _font = JeFont.Get();
 
+            // Host the panel inside the SAME canvas that renders the results text so the
+            // detail text and our panel are in the same render tree; a standalone overlay
+            // canvas is NOT guaranteed to draw above the game's results text, regardless
+            // of sortingOrder.
+            var host = ResolveHostCanvas();
+            if (host == null)
+                return;
+
             var canvasObject = new GameObject("JEA_Previewer");
-            UnityEngine.Object.DontDestroyOnLoad(canvasObject);
             _canvas = canvasObject.AddComponent<Canvas>();
-            _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvasObject.transform.SetParent(host.transform, false);
+            _canvas.overrideSorting = true;
             _canvas.sortingOrder = 2147483647;
             var scaler = canvasObject.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -291,6 +299,9 @@ namespace JustEnoughAccuracy
             _background.type = Image.Type.Sliced;
             _background.color = new Color(0.020f, 0.028f, 0.042f, 0.94f);
             _background.raycastTarget = true;
+
+            var drag = panelObject.AddComponent<PanelDrag>();
+            drag.Setup(_panelRect, _canvas);
 
             _border = CreateChildImage(panelObject, "Border", _ringSprite, new Color(1f, 1f, 1f, 0.90f));
             _border.type = Image.Type.Sliced;
@@ -440,6 +451,22 @@ namespace JustEnoughAccuracy
             exportButton.onClick.AddListener(OnExportClicked);
 
             _canvas.gameObject.SetActive(false);
+        }
+
+        private static Canvas? ResolveHostCanvas()
+        {
+            var ctl = scrController.instance;
+            if (ctl != null && ctl.detailedResults != null)
+            {
+                var textCanvas = ctl.detailedResults.textComponent?.canvas;
+                if (textCanvas != null)
+                    return textCanvas;
+            }
+
+            if (scrUIController.instance != null && scrUIController.instance.canvas != null)
+                return scrUIController.instance.canvas;
+
+            return null;
         }
 
         private static void OnExportClicked()

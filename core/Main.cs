@@ -31,10 +31,12 @@ namespace JustEnoughAccuracy
 
             // Showing is driven by a patch on DetailedResults.Show(), so the button
             // only ever appears when the official results screen actually displays
-            // (never in the editor). Here we only detect when it goes away: scnGame
-            // deactivates the results GameObject on level reload/exit.
+            // (never in the editor, and never after we leave the Won state).
+            // Hide once we're no longer on the results screen: the state machine is
+            // the reliable signal (activeSelf can stay true in the main menu).
             var ctl = scrController.instance;
             var resultsVisible = ctl != null
+                                 && ctl.currentState == States.Won
                                  && ctl.detailedResults != null
                                  && ctl.detailedResults.gameObject.activeSelf;
 
