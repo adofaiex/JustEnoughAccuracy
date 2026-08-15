@@ -3,14 +3,14 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <OutputType>Library</OutputType>
-    <RootNamespace>AdofaiMod.MultiLoader</RootNamespace>
-    <AssemblyName>AdofaiMod.MultiLoader.Core</AssemblyName>
+    <RootNamespace>JustEnoughAccuracy</RootNamespace>
+    <AssemblyName>JustEnoughAccuracy.Core</AssemblyName>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
-    <Description>ADOFAI Multi-Loader Mod Template</Description>
-    <Company>Your Name</Company>
-    <Version>1.0.0</Version>
-    <Copyright>Copyright © 2026 Your Name</Copyright>
+    <Description>Angle-level accuracy mod for ADOFAI.</Description>
+    <Company>JEA Dev</Company>
+    <Version>0.1.6</Version>
+    <Copyright>Copyright © 2026 JEA Dev</Copyright>
     <OutputPath>..\bin\$(Configuration)\core\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <IsCoreProject>true</IsCoreProject>
@@ -22,7 +22,9 @@
   <Import Project="..\ADOFAIMod.targets" Condition="Exists('..\ADOFAIMod.targets')" />
 
   <ItemGroup>
-    <PackageReference Include="HarmonyX" Version="2.10.1" />
+    <Reference Include="0Harmony">
+      <HintPath>..\lib\ModManager\0Harmony.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>
@@ -43,6 +45,18 @@
     </Reference>
     <Reference Include="UnityEngine.UI">
       <HintPath>$(ManagedAssembliesDir)\UnityEngine.UI.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>$(ManagedAssembliesDir)\UnityEngine.UIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>$(ManagedAssembliesDir)\Unity.TextMeshPro.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TextCoreFontEngineModule">
+      <HintPath>$(ManagedAssembliesDir)\UnityEngine.TextCoreFontEngineModule.dll</HintPath>
+    </Reference>
+    <Reference Include="RDTools">
+      <HintPath>$(ManagedAssembliesDir)\RDTools.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.InputLegacyModule">
       <HintPath>$(ManagedAssembliesDir)\UnityEngine.InputLegacyModule.dll</HintPath>

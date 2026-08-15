@@ -4,7 +4,7 @@ using BepInEx;
 using BepInEx.Logging;
 using Newtonsoft.Json;
 
-namespace AdofaiMod.MultiLoader.Loaders
+namespace JustEnoughAccuracy.Loaders
 {
     public class BepInHandler : IHandler
     {
@@ -17,8 +17,8 @@ namespace AdofaiMod.MultiLoader.Loaders
             _settingsPath = Path.Combine(Paths.ConfigPath, $"{ModId}.json");
         }
 
-        public string ModId => "AdofaiMod.MultiLoader";
-        public string ModVersion => "1.0.0";
+        public string ModId => "JEA";
+        public string ModVersion => "0.1.6";
         public string ModPath => Paths.PluginPath;
 
         public void Log(string message) => _log.LogInfo(message);

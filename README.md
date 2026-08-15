@@ -1,4 +1,4 @@
-# ADOFAI Multi-Loader Mod Template
+# Angle-level accuracy mod for ADOFAI.
 
 A project template for creating A Dance of Fire and Ice (ADOFAI) mods that work with multiple mod loaders: Unity Mod Manager, MelonLoader, BepInEx, and Doorstop standalone.
 
@@ -7,7 +7,7 @@ A project template for creating A Dance of Fire and Ice (ADOFAI) mods that work 
 ```
 ProjectRoot/
 ├── core/
-│   ├── AdofaiMod.MultiLoader.Core.csproj   -- Shared mod logic
+│   ├── JustEnoughAccuracy.Core.csproj   -- Shared mod logic
 │   ├── IHandler.cs                         -- Loader abstraction interface
 │   ├── Main.cs                             -- Entry point (Initialize)
 │   ├── Settings.cs                         -- Serializable settings
@@ -59,8 +59,8 @@ Loader project (e.g. loaders/umm/)
 dotnet new install path/to/ADOFAIMod.MultiLoader
 
 # Or from a packed NuGet package
-dotnet pack path/to/AdofaiMod.MultiLoader.Template.csproj -o path/to/dist
-dotnet new install path/to/dist/AdofaiMod.MultiLoader.1.0.0.nupkg
+dotnet pack path/to/JustEnoughAccuracy.Template.csproj -o path/to/dist
+dotnet new install path/to/dist/JustEnoughAccuracy.1.0.0.nupkg
 ```
 
 The template is installed as `adofaiml`. Uninstall with `dotnet new uninstall ADOFAIMod.MultiLoader`.
@@ -232,7 +232,7 @@ with a clean initial commit.
 ## Uninstall the Template
 
 ```bash
-dotnet new uninstall AdofaiMod.MultiLoader
+dotnet new uninstall JustEnoughAccuracy
 ```
 
 ## License

@@ -1,6 +1,6 @@
 using UnityModManagerNet;
 
-namespace AdofaiMod.MultiLoader.Loaders
+namespace JustEnoughAccuracy.Loaders
 {
     public static class UmmEntry
     {

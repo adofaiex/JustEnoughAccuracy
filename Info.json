@@ -1,12 +1,12 @@
 {
-  "Id": "AdofaiMod.MultiLoader",
-  "DisplayName": "AdofaiMod.MultiLoader",
-  "Author": "Your Name",
-  "Version": "1.0.0",
+  "Id": "JEA",
+  "DisplayName": "Just Enough Accuracy",
+  "Author": "View Judgements and Details",
+  "Version": "0.1.6",
   "ManagerVersion": "0.27.0",
   "Requirements": [],
-  "AssemblyName": "AdofaiMod.MultiLoader.Loader.UMM.dll",
-  "EntryMethod": "AdofaiMod.MultiLoader.Loaders.UmmEntry.Load",
+  "AssemblyName": "JustEnoughAccuracy.Loader.UMM.dll",
+  "EntryMethod": "JustEnoughAccuracy.Loaders.UmmEntry.Load",
   "HomePage": "",
   "Repository": ""
 }

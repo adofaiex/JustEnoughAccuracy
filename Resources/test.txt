@@ -1,4 +1,0 @@
-这是一个测试文本文件
-This is a test text file
-用于测试资源加载功能
-For testing resource loading functionality

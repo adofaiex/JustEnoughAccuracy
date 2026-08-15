@@ -3,7 +3,7 @@ using System.IO;
 using MelonLoader;
 using Newtonsoft.Json;
 
-namespace AdofaiMod.MultiLoader.Loaders
+namespace JustEnoughAccuracy.Loaders
 {
     public class MelonHandler : IHandler
     {

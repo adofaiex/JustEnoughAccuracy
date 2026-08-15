@@ -35,9 +35,9 @@
           Condition="Exists('$(OutputPath)$(AssemblyName).pdb')" SkipUnchangedFiles="true" />
 
     <!-- loader projects also bring core.dll + extras -->
-    <Copy SourceFiles="$(ProjectDir)../../bin/$(Configuration)/core/AdofaiMod.MultiLoader.Core.dll"
+    <Copy SourceFiles="$(ProjectDir)../../bin/$(Configuration)/core/JustEnoughAccuracy.Core.dll"
           DestinationFolder="$(RootOutDir)"
-          Condition="'$(IsLoader)' == 'true' AND Exists('$(ProjectDir)../../bin/$(Configuration)/core/AdofaiMod.MultiLoader.Core.dll')"
+          Condition="'$(IsLoader)' == 'true' AND Exists('$(ProjectDir)../../bin/$(Configuration)/core/JustEnoughAccuracy.Core.dll')"
           SkipUnchangedFiles="true" />
     <Copy SourceFiles="$(ProjectDir)../../Info.json"
           DestinationFolder="$(RootOutDir)"
@@ -79,7 +79,7 @@
       <DeployDir Condition="'$(Loader)' == 'ML'">$(GameDir)/Mods/</DeployDir>
       <DeployDir Condition="'$(Loader)' == 'BepInEx'">$(GameDir)/BepInEx/plugins/$(ModName)/</DeployDir>
       <DeployDir Condition="'$(Loader)' == 'Doorstop'">$(GameDir)/</DeployDir>
-      <IsWindows Condition="'$(OS)' == 'Windows_NT'">true</IsWindows>
+      <IsWindows>true</IsWindows>
     </PropertyGroup>
 
     <ItemGroup Condition="'$(Loader)' != '' AND $(AssemblyName.EndsWith('$(LoaderSuffix)')) AND '$(DeployDir)' != ''">

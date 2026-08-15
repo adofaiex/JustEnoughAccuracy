@@ -1,9 +1,9 @@
 using MelonLoader;
 
-[assembly: MelonInfo(typeof(AdofaiMod.MultiLoader.Loaders.AdofaiMelonMod), "AdofaiMod.MultiLoader", "1.0.0", "Your Name")]
+[assembly: MelonInfo(typeof(JustEnoughAccuracy.Loaders.AdofaiMelonMod), "JEA", "0.1.6", "JEA Dev")]
 [assembly: MelonGame("7th Beat Games", "A Dance of Fire and Ice")]
 
-namespace AdofaiMod.MultiLoader.Loaders
+namespace JustEnoughAccuracy.Loaders
 {
     public class AdofaiMelonMod : MelonMod
     {

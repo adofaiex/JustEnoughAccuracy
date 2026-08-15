@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using UnityEngine;
 
-namespace AdofaiMod.MultiLoader
+namespace JustEnoughAccuracy
 {
     public static class ResourceLoader
     {

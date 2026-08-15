@@ -1,12 +1,12 @@
 using BepInEx;
 
-namespace AdofaiMod.MultiLoader.Loaders
+namespace JustEnoughAccuracy.Loaders
 {
-    [BepInPlugin(ModId, "AdofaiMod.MultiLoader", "1.0.0")]
+    [BepInPlugin(ModId, "JustEnoughAccuracy", "0.1.6")]
     [BepInProcess("A Dance of Fire and Ice.exe")]
     public class AdofaiBepInPlugin : BaseUnityPlugin
     {
-        private const string ModId = "AdofaiMod.MultiLoader";
+        private const string ModId = "JEA";
         private BepInHandler? _handler;
 
         private void Awake()

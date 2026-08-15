@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="core/JustEnoughAccuracy.Core.csproj" />
+  <Project Path="loaders/bepinex/JustEnoughAccuracy.Loader.BepInEx.csproj" />
+  <Project Path="loaders/melon/JustEnoughAccuracy.Loader.Melon.csproj" />
+  <Project Path="loaders/umm/JustEnoughAccuracy.Loader.UMM.csproj" />
+</Solution>

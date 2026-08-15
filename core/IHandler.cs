@@ -1,6 +1,6 @@
 using System;
 
-namespace AdofaiMod.MultiLoader
+namespace JustEnoughAccuracy
 {
     public interface IHandler
     {

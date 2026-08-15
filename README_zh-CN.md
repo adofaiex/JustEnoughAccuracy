@@ -8,7 +8,7 @@ Unity Mod Manager、MelonLoader、BepInEx 和 Doorstop 独立模式。
 ```
 ProjectRoot/
 ├── core/
-│   ├── AdofaiMod.MultiLoader.Core.csproj   -- 共享核心逻辑
+│   ├── JustEnoughAccuracy.Core.csproj   -- 共享核心逻辑
 │   ├── IHandler.cs                         -- 加载器抽象接口
 │   ├── Main.cs                             -- 入口点 (Initialize)
 │   ├── Settings.cs                         -- 可序列化的设置
@@ -58,8 +58,8 @@ ProjectRoot/
 dotnet new install path/to/ADOFAIMod.MultiLoader
 
 # 或从打包的 NuGet 包安装
-dotnet pack path/to/AdofaiMod.MultiLoader.Template.csproj -o path/to/dist
-dotnet new install path/to/dist/AdofaiMod.MultiLoader.1.0.0.nupkg
+dotnet pack path/to/JustEnoughAccuracy.Template.csproj -o path/to/dist
+dotnet new install path/to/dist/JustEnoughAccuracy.1.0.0.nupkg
 ```
 
 模板安装后名为 `adofaiml`。卸载用 `dotnet new uninstall ADOFAIMod.MultiLoader`。
@@ -227,7 +227,7 @@ chmod +x init.sh
 ## 卸载模板
 
 ```bash
-dotnet new uninstall AdofaiMod.MultiLoader
+dotnet new uninstall JustEnoughAccuracy
 ```
 
 ## 许可证

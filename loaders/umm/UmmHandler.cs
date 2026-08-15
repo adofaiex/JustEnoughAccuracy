@@ -3,7 +3,7 @@ using System.IO;
 using Newtonsoft.Json;
 using UnityModManagerNet;
 
-namespace AdofaiMod.MultiLoader.Loaders
+namespace JustEnoughAccuracy.Loaders
 {
     public class UmmHandler : IHandler
     {

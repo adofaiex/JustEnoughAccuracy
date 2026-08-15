@@ -3,32 +3,32 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <OutputType>Library</OutputType>
-    <RootNamespace>AdofaiMod.MultiLoader.Loaders</RootNamespace>
-    <AssemblyName>AdofaiMod.MultiLoader.Loader.BepInEx</AssemblyName>
+    <RootNamespace>JustEnoughAccuracy.Loaders</RootNamespace>
+    <AssemblyName>JustEnoughAccuracy.Loader.UMM</AssemblyName>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
-    <Description>ADOFAI Multi-Loader Mod Template</Description>
-    <Company>Your Name</Company>
-    <Version>1.0.0</Version>
-    <Copyright>Copyright © 2026 Your Name</Copyright>
+    <Description>Angle-level accuracy mod for ADOFAI.</Description>
+    <Company>JEA Dev</Company>
+    <Version>0.1.6</Version>
+    <Copyright>Copyright © 2026 JEA Dev</Copyright>
     <ModManagerDir>$(ProjectDir)../../lib/ModManager/</ModManagerDir>
-    <OutputPath>..\..\bin\$(Configuration)\loaders\bepinex\</OutputPath>
+    <OutputPath>..\..\bin\$(Configuration)\loaders\umm\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <!-- Uses the GameExePath_BEPINEXFinal path resolved from .env (see Directory.Build.props).
+    <!-- Uses the GameExePath_UMMFinal path resolved from .env (see Directory.Build.props).
          You can still override GameExePath here to hard-code a path. -->
-    <GameExePath>$(GameExePath_BEPINEXFinal)</GameExePath>
+    <GameExePath>$(GameExePath_UMMFinal)</GameExePath>
     <ManagedAssembliesDir Condition="'$(GameExePath)' != ''">$([System.IO.Path]::GetDirectoryName($(GameExePath)))\$([System.IO.Path]::GetFileNameWithoutExtension($(GameExePath)))_Data\Managed</ManagedAssembliesDir>
   </PropertyGroup>
 
   <Import Project="..\..\ADOFAIMod.targets" Condition="Exists('..\..\ADOFAIMod.targets')" />
 
   <ItemGroup>
-    <ProjectReference Include="..\..\core\AdofaiMod.MultiLoader.Core.csproj" />
+    <ProjectReference Include="..\..\core\JustEnoughAccuracy.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="BepInEx">
-      <HintPath>$(ModManagerDir)BepInEx\core\BepInEx.dll</HintPath>
+    <Reference Include="UnityModManager">
+      <HintPath>$(ModManagerDir)UnityModManager.dll</HintPath>
     </Reference>
     <Reference Include="Newtonsoft.Json">
       <HintPath>$(ManagedAssembliesDir)\Newtonsoft.Json.dll</HintPath>
