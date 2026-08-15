@@ -20,10 +20,10 @@ namespace JustEnoughAccuracy
         /// <summary>Deviation normalized to the reference BPM (degrees at ReferenceBpm).</summary>
         public double NormalizedDeviationDeg { get; set; }
 
-        /// <summary>JEA band score for this tile (before combo multiplier).</summary>
+        /// <summary>JEA band score for this tile.</summary>
         public int JeaTileScore { get; set; }
 
-        /// <summary>JEA final tile score (after combo multiplier).</summary>
+        /// <summary>JEA committed tile score (same as the band score, no multiplier).</summary>
         public long JeaFinalTileScore { get; set; }
 
         /// <summary>JEA cumulative total score up to and including this tile.</summary>

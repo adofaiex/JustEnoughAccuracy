@@ -43,13 +43,16 @@ namespace JustEnoughAccuracy
         /// </summary>
         public double ReferenceBpm { get; set; } = 100;
 
-        /// <summary>Score below which a tile is considered a break for the combo.</summary>
+        /// <summary>
+        /// Score below which a tile is considered a break for the combo.
+        /// The combo is tracked for display only; it does not multiply tile scores.
+        /// </summary>
         public int ComboThreshold { get; set; } = 50;
 
-        /// <summary>Combo multiplier step: +2% per combo, i.e. 1 + combo * 0.02.</summary>
+        /// <summary>Legacy combo multiplier step, kept for settings compatibility (unused).</summary>
         public double ComboStep { get; set; } = 0.02;
 
-        /// <summary>Max combo multiplier (1 + combo*step) is capped here, allows &gt;100%.</summary>
+        /// <summary>Legacy combo multiplier cap, kept for settings compatibility (unused).</summary>
         public double ComboMaxMultiplier { get; set; } = 3.0;
 
         /// <summary>

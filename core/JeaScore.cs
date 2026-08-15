@@ -10,7 +10,8 @@ namespace JustEnoughAccuracy
     /// score band, no BPM / ms conversion involved.
     ///
     /// 连锁 (combo): consecutive tiles scoring at or above <see cref="Settings.ComboThreshold"/>
-    /// grow a combo that multiplies the tile score, so accuracy can exceed 100%.
+    /// grow a combo that is tracked for display only — it does NOT multiply tile scores, so
+    /// accuracy is capped at 100%.
     ///
     /// 空敲容错 (empty-press tolerance): mirrors the official <c>consecMultipressCounter &gt; 8</c>
     /// rule — the first N consecutive empty presses are forgiven, after which each one costs a
@@ -91,12 +92,6 @@ namespace JustEnoughAccuracy
             return absDeviationDeg * reference / bpm;
         }
 
-        private static double ComboMultiplier()
-        {
-            var m = 1.0 + Main.Settings.ComboStep * Combo;
-            return Math.Min(m, Main.Settings.ComboMaxMultiplier);
-        }
-
         /// <summary>What the last committed operation was, for the judgement recorder.</summary>
         public enum LastOp
         {
@@ -122,7 +117,7 @@ namespace JustEnoughAccuracy
             MaxCombo = Math.Max(MaxCombo, Combo);
             ConsecutiveEmptyPresses = 0;
 
-            var tileScore = (long)Math.Round(baseScore * ComboMultiplier());
+            var tileScore = baseScore;
             SetLastOp(LastOp.Tile, tileScore);
             Commit(tileScore, tile: true);
         }
