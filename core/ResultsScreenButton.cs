@@ -10,17 +10,29 @@ namespace JustEnoughAccuracy
         private static GameObject? _root;
         private static Button? _button;
         private static Sprite? _fillSprite;
+        private static TextMeshProUGUI? _label;
+        private static int _languageVersion = -1;
 
         public static void Show()
         {
             EnsureUI();
             if (_canvas == null || _root == null) return;
+            ApplyTranslations();
             // The game may have added siblings after us; staying last keeps us
             // rendering after the results text within the same canvas.
             _canvas.transform.SetAsLastSibling();
             PositionNearResultsText();
             _canvas.gameObject.SetActive(true);
             _root.SetActive(true);
+        }
+
+        /// <summary>Re-applies localized text when the language changed.</summary>
+        private static void ApplyTranslations()
+        {
+            if (_label == null || JeI18n.LanguageVersion == _languageVersion)
+                return;
+            _languageVersion = JeI18n.LanguageVersion;
+            _label.text = "<b>" + JeI18n.Get("results.button") + "</b>";
         }
 
         public static void Hide()
@@ -111,13 +123,13 @@ namespace JustEnoughAccuracy
             tr.offsetMin = Vector2.zero;
             tr.offsetMax = Vector2.zero;
 
-            var text = textObj.GetComponent<TextMeshProUGUI>();
+            _label = textObj.GetComponent<TextMeshProUGUI>();
             var font = JeFont.Get();
-            text.font = font;
-            text.text = "<b>" + JeI18n.Get("results.button") + "</b>";
-            text.fontSize = 22f;
-            text.alignment = TextAlignmentOptions.Center;
-            text.color = Color.white;
+            _label.font = font;
+            _label.text = "<b>" + JeI18n.Get("results.button") + "</b>";
+            _label.fontSize = 22f;
+            _label.alignment = TextAlignmentOptions.Center;
+            _label.color = Color.white;
 
             _button = _root.GetComponent<Button>();
             _button.targetGraphic = bg;

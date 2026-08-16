@@ -24,6 +24,10 @@ namespace JustEnoughAccuracy
         private static bool _scanned;
         private static bool _loggedFailure;
 
+        /// <summary>Bumped every time the language is force-reloaded, so cached
+        /// UI text can be re-translated on demand.</summary>
+        public static int LanguageVersion { get; private set; }
+
         /// <summary>Current UI language code (e.g. "zh", "en"); "en" if unmapped.</summary>
         public static string LangCode()
         {
@@ -89,6 +93,7 @@ namespace JustEnoughAccuracy
         public static void ForceReload()
         {
             _loadedLang = null;
+            LanguageVersion++;
         }
 
         // ---------- discovery ----------

@@ -22,7 +22,7 @@ namespace JustEnoughAccuracy
             {
                 if (!Main.Settings.DisplayInDetailedResults || !Main.Settings.Enabled) return;
                 __result = __result.TrimEnd() + "\n" + JeI18n.GetF("results.line",
-                    JeaScore.TotalScore, JeaScore.CachedAccuracy / 10000m, JeaScore.MaxCombo, JeaScore.Tiles);
+                    Math.Floor(JeaScore.TotalScore), JeaScore.CachedAccuracy / 10000m, JeaScore.MaxCombo, JeaScore.Tiles);
             }
         }
 
@@ -85,7 +85,7 @@ namespace JustEnoughAccuracy
                 var tileScore = JeaScore.TileScore;
                 if (Main.Settings.NoDisplayPerfect && __instance.hitMargin == HitMargin.Perfect)
                 {
-                    __instance.text.text = $"\u200B\u200B{tileScore}\u200B\u200B";
+                    __instance.text.text = $"\u200B\u200B{(long)Math.Floor(tileScore)}\u200B\u200B";
                     return;
                 }
 
@@ -95,7 +95,7 @@ namespace JustEnoughAccuracy
                     text = __instance.text.text;
                 }
 
-                // rounded for the in-game hit text; the exact value goes to the recorder
+                // floored for the in-game hit text; the exact value goes to the recorder
                 double? score = __instance.hitMargin switch
                 {
                     HitMargin.Multipress => null,
@@ -104,7 +104,7 @@ namespace JustEnoughAccuracy
                     HitMargin.FailOverload => -100,
                     HitMargin.TooEarly => null,
                     HitMargin.TooLate => null,
-                    _ => Math.Round(tileScore)
+                    _ => Math.Floor(tileScore)
                 };
 
                 if (score is null) return;
@@ -249,6 +249,29 @@ namespace JustEnoughAccuracy
             {
                 JeaScore.RevertTo(__instance.hitMargins.Count);
                 JudgementRecorder.RevertTo(__instance.hitMargins.Count);
+            }
+        }
+
+        /// <summary>
+        /// Leaving the editor's play mode (Esc) does NOT reset the controller state
+        /// machine nor deactivate detailedResults, so the results-button would linger.
+        /// Hide our UI the moment the editor returns to edit mode.
+        /// </summary>
+        [HarmonyPatch(typeof(scnEditor), nameof(scnEditor.SwitchToEditMode))]
+        public static class scnEditor_SwitchToEditMode
+        {
+            public static void Postfix()
+            {
+                if (!Main.Settings.Enabled) return;
+                try
+                {
+                    JePreviewer.Close();
+                    ResultsScreenButton.Hide();
+                }
+                catch (Exception ex)
+                {
+                    Main.Handler?.Error($"[JEA][Patch] SwitchToEditMode cleanup failed: {ex}");
+                }
             }
         }
 

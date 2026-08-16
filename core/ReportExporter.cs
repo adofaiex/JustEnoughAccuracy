@@ -256,7 +256,7 @@ namespace JustEnoughAccuracy
             // footer stats
             sb.Append("<div class=\"stats\">");
             AppendStat(sb, JeI18n.Get("chart.statScore"),
-                JeaScore.TotalScore.ToString("0.##", CultureInfo.InvariantCulture));
+                Math.Floor(JeaScore.TotalScore).ToString(CultureInfo.InvariantCulture));
             AppendStat(sb, JeI18n.Get("chart.statAcc"),
                 finalAcc.ToString("0.0000", CultureInfo.InvariantCulture) + "%", true);
             AppendStat(sb, JeI18n.Get("chart.statCombo"),

@@ -58,6 +58,9 @@ namespace JustEnoughAccuracy
         private static float _maxScroll;
         private static float _scrollOffset;
         private static string _lastFilter = "";
+        private static readonly List<(TextMeshProUGUI Label, string Key)> _translatedLabels = new();
+        private static TextMeshProUGUI? _searchPlaceholder;
+        private static int _languageVersion = -1;
 
         /// <summary>Whether the previewer overlay is currently open.</summary>
         public static bool IsOpen { get; private set; }
@@ -83,6 +86,7 @@ namespace JustEnoughAccuracy
                 _title.text = TitleMarkup;
             if (_search != null)
                 _search.text = "";
+            ApplyTranslations();
             if (_canvas != null)
             {
                 _canvas.transform.SetAsLastSibling();
@@ -107,6 +111,21 @@ namespace JustEnoughAccuracy
                 _seriesMenu.SetActive(false);
             if (_canvas != null)
                 _canvas.gameObject.SetActive(false);
+        }
+
+        /// <summary>Re-applies localized text when the language changed.</summary>
+        private static void ApplyTranslations()
+        {
+            if (JeI18n.LanguageVersion == _languageVersion)
+                return;
+            _languageVersion = JeI18n.LanguageVersion;
+            if (_searchPlaceholder != null)
+                _searchPlaceholder.text = JeI18n.Get("previewer.searchPlaceholder");
+            foreach (var (label, key) in _translatedLabels)
+            {
+                if (label != null)
+                    label.text = "<b>" + JeI18n.Get(key) + "</b>";
+            }
         }
 
         // ---------- update loop (driven from Main.OnUpdate) ----------
@@ -176,10 +195,10 @@ namespace JustEnoughAccuracy
 
             // summary line — compact: score | acc% | combo | tiles
             Builder.Append("<color=#7CE0B3>")
-                .Append(JeaScore.TotalScore.ToString("0.##", CultureInfo.InvariantCulture))
+                .Append(Math.Floor(JeaScore.TotalScore).ToString(CultureInfo.InvariantCulture))
                 .Append("</color>")
                 .Append("  <color=#5F6771>|</color>  ")
-                .Append((JeaScore.CachedAccuracy / 10000m).ToString("0.00", CultureInfo.InvariantCulture))
+                .Append((JeaScore.CachedAccuracy / 10000m).ToString("0.####", CultureInfo.InvariantCulture))
                 .Append("<color=#7CE0B3>%</color>")
                 .Append("  <color=#5F6771>|</color>  x")
                 .Append(JeaScore.MaxCombo.ToString(CultureInfo.InvariantCulture))
@@ -237,9 +256,9 @@ namespace JustEnoughAccuracy
             sb.Append(record.Tile.ToString(CultureInfo.InvariantCulture)).Append(' ')
                 .Append(ReportExporter.FormatTimestampPublic(record.Timestamp)).Append(' ')
                 .Append(record.Margin).Append(' ')
-                .Append(record.JeaTileScore.ToString("0.#", CultureInfo.InvariantCulture)).Append(' ')
-                .Append(record.JeaFinalTileScore.ToString("0.###", CultureInfo.InvariantCulture)).Append(' ')
-                .Append(record.JeaTotalScore.ToString("0.###", CultureInfo.InvariantCulture)).Append(' ')
+                .Append(Math.Floor(record.JeaTileScore).ToString(CultureInfo.InvariantCulture)).Append(' ')
+                .Append(Math.Floor(record.JeaFinalTileScore).ToString(CultureInfo.InvariantCulture)).Append(' ')
+                .Append(Math.Floor(record.JeaTotalScore).ToString(CultureInfo.InvariantCulture)).Append(' ')
                 .Append(record.OfficialScore?.ToString(CultureInfo.InvariantCulture) ?? "").Append(' ')
                 .Append(record.NeaScore?.ToString(CultureInfo.InvariantCulture) ?? "").Append(' ')
                 .Append(record.RawDeviationDeg.ToString("0.###", CultureInfo.InvariantCulture)).Append(' ')
@@ -273,7 +292,7 @@ namespace JustEnoughAccuracy
                 .Append(">")
                 .Append(r.Margin)
                 .Append("</color></b> <b><color=#FFFFFFFF>")
-                .Append(r.JeaTileScore.ToString("0.###", CultureInfo.InvariantCulture))
+                .Append(Math.Floor(r.JeaTileScore).ToString(CultureInfo.InvariantCulture))
                 .Append("</color></b> <color=#5F6771>")
                 .Append(FormatDev(r.RawDeviationDeg))
                 .Append("°</color>");
@@ -300,6 +319,10 @@ namespace JustEnoughAccuracy
         {
             if (_canvas != null)
                 return;
+
+            // A previous scene may have destroyed the row GameObjects while the
+            // static Rows list survived; drop stale entries before rebuilding.
+            Rows.Clear();
 
             Main.Handler?.Log("[JEA][Previewer] EnsureUI() starting");
             EnsureSprites();
@@ -442,6 +465,7 @@ namespace JustEnoughAccuracy
             phComp.textWrappingMode = TextWrappingModes.NoWrap;
             phComp.text = JeI18n.Get("previewer.searchPlaceholder");
             phComp.raycastTarget = false;
+            _searchPlaceholder = phComp;
             var phRect = (RectTransform)placeholderObj.transform;
             phRect.anchorMin = Vector2.zero;
             phRect.anchorMax = Vector2.one;
@@ -490,6 +514,7 @@ namespace JustEnoughAccuracy
             exportImage.color = new Color(0.16f, 0.55f, 0.38f, 0.9f);
             var exportText = CreateText(exportObj, "T", 19f);
             exportText.text = "<b>" + JeI18n.Get("previewer.export") + "</b>";
+            _translatedLabels.Add((exportText, "previewer.export"));
             exportText.rectTransform.anchorMin = Vector2.zero;
             exportText.rectTransform.anchorMax = Vector2.one;
             exportText.rectTransform.pivot = new Vector2(0.5f, 0.5f);
@@ -516,11 +541,12 @@ namespace JustEnoughAccuracy
 
             var menuTitle = CreateText(menuObj, "Title", 18f);
             menuTitle.text = "<b>" + JeI18n.Get("previewer.exportFormat") + "</b>";
+            _translatedLabels.Add((menuTitle, "previewer.exportFormat"));
             menuTitle.rectTransform.anchoredPosition = new Vector2(14f, -10f);
             menuTitle.rectTransform.sizeDelta = new Vector2(252f, 24f);
 
-            MakeMenuButton(menuObj, "Yaml", 14f, -40f, 252f, 42f, "<b>" + JeI18n.Get("previewer.exportYaml") + "</b>", OnExportYamlClicked);
-            MakeMenuButton(menuObj, "Chart", 14f, -90f, 252f, 42f, "<b>" + JeI18n.Get("previewer.exportChart") + "</b>", ShowSeriesMenu);
+            MakeMenuButton(menuObj, "Yaml", 14f, -40f, 252f, 42f, "previewer.exportYaml", OnExportYamlClicked);
+            MakeMenuButton(menuObj, "Chart", 14f, -90f, 252f, 42f, "previewer.exportChart", ShowSeriesMenu);
 
             menuObj.SetActive(false);
             _exportMenu = menuObj;
@@ -549,21 +575,22 @@ namespace JustEnoughAccuracy
 
             var seriesTitle = CreateText(seriesMenuObj, "Title", 18f);
             seriesTitle.text = "<b>" + JeI18n.Get("previewer.exportSeries") + "</b>";
+            _translatedLabels.Add((seriesTitle, "previewer.exportSeries"));
             seriesTitle.rectTransform.anchoredPosition = new Vector2(14f, -10f);
             seriesTitle.rectTransform.sizeDelta = new Vector2(272f, 24f);
 
             var rowY = -44f;
             foreach (var s in seriesList)
             {
-                MakeSeriesRow(seriesMenuObj, rowY, s.Id, JeI18n.Get(s.I18nKey), s.Color);
+                MakeSeriesRow(seriesMenuObj, rowY, s.Id, s.I18nKey, JeI18n.Get(s.I18nKey), s.Color);
                 rowY -= 32f;
             }
 
             var buttonsY = -(seriesMenuH - 12f - 42f);
             MakeMenuButton(seriesMenuObj, "Cancel", 14f, buttonsY, 133f, 42f,
-                "<b>" + JeI18n.Get("previewer.exportCancel") + "</b>", HideSeriesMenu);
+                "previewer.exportCancel", HideSeriesMenu);
             MakeMenuButton(seriesMenuObj, "Confirm", 153f, buttonsY, 133f, 42f,
-                "<b>" + JeI18n.Get("previewer.exportConfirm") + "</b>", OnExportChartClicked);
+                "previewer.exportConfirm", OnExportChartClicked);
 
             seriesMenuObj.SetActive(false);
             _seriesMenu = seriesMenuObj;
@@ -586,7 +613,7 @@ namespace JustEnoughAccuracy
         }
 
         private static void MakeMenuButton(GameObject menu, string name, float x, float y, float width, float height,
-            string label, Action onClick)
+            string i18nKey, Action onClick)
         {
             var btnObj = new GameObject(name, typeof(RectTransform));
             btnObj.transform.SetParent(menu.transform, false);
@@ -601,7 +628,8 @@ namespace JustEnoughAccuracy
             image.type = Image.Type.Sliced;
             image.color = new Color(1f, 1f, 1f, 0.10f);
             var label2 = CreateText(btnObj, "T", 17f);
-            label2.text = label;
+            label2.text = "<b>" + JeI18n.Get(i18nKey) + "</b>";
+            _translatedLabels.Add((label2, i18nKey));
             label2.rectTransform.anchorMin = Vector2.zero;
             label2.rectTransform.anchorMax = Vector2.one;
             label2.rectTransform.pivot = new Vector2(0.5f, 0.5f);
@@ -619,7 +647,7 @@ namespace JustEnoughAccuracy
             _exportMenu.SetActive(!_exportMenu.activeSelf);
         }
 
-        private static void MakeSeriesRow(GameObject menu, float y, string id, string label, string colorHex)
+        private static void MakeSeriesRow(GameObject menu, float y, string id, string i18nKey, string label, string colorHex)
         {
             var rowObj = new GameObject("Row_" + id, typeof(RectTransform));
             rowObj.transform.SetParent(menu.transform, false);
@@ -650,6 +678,7 @@ namespace JustEnoughAccuracy
 
             var label2 = CreateText(rowObj, "T", 16f);
             label2.text = label;
+            _translatedLabels.Add((label2, i18nKey));
             label2.rectTransform.anchorMin = new Vector2(0f, 0f);
             label2.rectTransform.anchorMax = new Vector2(1f, 1f);
             label2.rectTransform.pivot = new Vector2(0f, 0.5f);
