@@ -19,6 +19,7 @@ namespace JustEnoughAccuracy
         private static readonly Dictionary<string, string> Entries = new();
         private static Dictionary<SystemLanguage, string> _langMap = new();
         private static readonly Dictionary<string, string> FilesByCode = new();
+        private static readonly Dictionary<string, string> DisplayNames = new();
         private static string? _loadedLang;
         private static bool _scanned;
         private static bool _loggedFailure;
@@ -27,6 +28,11 @@ namespace JustEnoughAccuracy
         public static string LangCode()
         {
             EnsureScanned();
+
+            var override_ = Main.Settings?.Language;
+            if (!string.IsNullOrEmpty(override_) && FilesByCode.ContainsKey(override_!))
+                return override_!;
+
             try
             {
                 return _langMap.TryGetValue(Persistence.language, out var code) ? code : "en";
@@ -59,6 +65,30 @@ namespace JustEnoughAccuracy
             {
                 return Get(key);
             }
+        }
+
+        /// <summary>Returns all available language codes, with "en" first.</summary>
+        public static string[] AvailableLanguages()
+        {
+            EnsureScanned();
+            var result = new List<string> { "en" };
+            foreach (var kv in FilesByCode)
+                if (kv.Key != "en" && !result.Contains(kv.Key))
+                    result.Add(kv.Key);
+            return result.ToArray();
+        }
+
+        /// <summary>Returns a display name for a language code (for UI selectors).</summary>
+        public static string DisplayName(string code)
+        {
+            EnsureScanned();
+            return DisplayNames.TryGetValue(code, out var name) ? name : code.ToUpperInvariant();
+        }
+
+        /// <summary>Forces a reload on next Get() call. Call after changing language.</summary>
+        public static void ForceReload()
+        {
+            _loadedLang = null;
         }
 
         // ---------- discovery ----------
@@ -97,6 +127,8 @@ namespace JustEnoughAccuracy
                 {
                     if (m.TryGetValue("code", out var c) && c is string s && !string.IsNullOrEmpty(s))
                         code = s;
+                    if (m.TryGetValue("name", out var n0) && n0 is string disp && !string.IsNullOrEmpty(disp))
+                        DisplayNames[code] = disp;
                     if (m.TryGetValue("systemLanguages", out var names) && names is List<object?> list)
                     {
                         foreach (var name in list)

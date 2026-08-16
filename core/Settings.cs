@@ -13,5 +13,8 @@ namespace JustEnoughAccuracy
         public bool NoDisplayPerfect { get; set; } = true;
 
         public bool DisplayInDetailedResults { get; set; } = true;
+
+        /// <summary>Language code override (e.g. "en", "zh"); null = follow game language.</summary>
+        public string? Language { get; set; }
     }
 }

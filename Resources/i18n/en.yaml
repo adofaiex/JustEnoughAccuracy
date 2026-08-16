@@ -3,6 +3,7 @@
 
 _lang:
   code: en
+  name: English
   systemLanguages:
     - English
 
@@ -24,6 +25,8 @@ previewer:
 
 settings:
   enabled: "Enable JustEnoughAccuracy"
+  language: "Language"
+  languageAuto: "Auto (follow game)"
   displayJudgement: "Show score in judgement texts"
   noDisplayPerfect: "Hide on Pure Perfect"
   displayResults: "Show summary in detailed results"

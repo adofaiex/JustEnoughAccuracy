@@ -3,6 +3,7 @@
 
 _lang:
   code: zh
+  name: 中文
   systemLanguages:
     - ChineseSimplified
     - ChineseTraditional
@@ -25,6 +26,8 @@ previewer:
 
 settings:
   enabled: "启用 JustEnoughAccuracy"
+  language: "语言"
+  languageAuto: "自动（跟随游戏）"
   displayJudgement: "在判定文字中显示分数"
   noDisplayPerfect: "纯 Perfect 时不显示"
   displayResults: "在结算中显示摘要"
