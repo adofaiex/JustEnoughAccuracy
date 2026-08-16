@@ -17,7 +17,11 @@ namespace JustEnoughAccuracy
         public static IReadOnlyList<JudgementRecord> Snapshot()
         {
             lock (Sync)
-                return Records.ToArray();
+            {
+                var result = Records.ToArray();
+                Main.Handler?.Log($"[JEA][Recorder] Snapshot: {result.Length} records");
+                return result;
+            }
         }
 
         public static int Count
@@ -28,7 +32,10 @@ namespace JustEnoughAccuracy
         public static void Clear()
         {
             lock (Sync)
+            {
+                Main.Handler?.Log("[JEA][Recorder] Clear() called");
                 Records.Clear();
+            }
         }
 
         /// <summary>Roll back records to the tracker's hit count (checkpoint revert / death).</summary>

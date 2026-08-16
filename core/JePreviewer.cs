@@ -62,11 +62,21 @@ namespace JustEnoughAccuracy
 
         public static void Open()
         {
+            Main.Handler?.Log("[JEA][Previewer] Open() called");
             EnsureUI();
+            Main.Handler?.Log($"[JEA][Previewer] After EnsureUI: _canvas={(_canvas != null)}");
             IsOpen = true;
             _scrollOffset = 0f;
             Refresh();
-            _canvas!.gameObject.SetActive(true);
+            if (_canvas != null)
+            {
+                _canvas.gameObject.SetActive(true);
+                Main.Handler?.Log("[JEA][Previewer] canvas activated");
+            }
+            else
+            {
+                Main.Handler?.Log("[JEA][Previewer] _canvas is null, previewer NOT shown");
+            }
         }
 
         public static void Close()
@@ -115,11 +125,17 @@ namespace JustEnoughAccuracy
 
         private static void Refresh()
         {
-            if (_search == null) return;
+            Main.Handler?.Log("[JEA][Previewer] Refresh() called");
+            if (_search == null) 
+            {
+                Main.Handler?.Log("[JEA][Previewer] Refresh() aborted: _search is null");
+                return;
+            }
             var filter = _search.text;
             _lastFilter = filter;
 
             var records = JudgementRecorder.Snapshot();
+            Main.Handler?.Log($"[JEA][Previewer] Snapshot returned {records.Count} records");
             Builder.Length = 0;
 
             var matches = new List<JudgementRecord>(records.Count);
@@ -130,6 +146,7 @@ namespace JustEnoughAccuracy
             }
 
             _visibleCount = matches.Count;
+            Main.Handler?.Log($"[JEA][Previewer] matches={matches.Count}, records={records.Count}");
 
             // summary line
             Builder.Append("<color=#AEB8C4>JEA </color>")
@@ -264,16 +281,17 @@ namespace JustEnoughAccuracy
             if (_canvas != null)
                 return;
 
+            Main.Handler?.Log("[JEA][Previewer] EnsureUI() starting");
             EnsureSprites();
             _font = JeFont.Get();
 
-            // Host the panel inside the SAME canvas that renders the results text so the
-            // detail text and our panel are in the same render tree; a standalone overlay
-            // canvas is NOT guaranteed to draw above the game's results text, regardless
-            // of sortingOrder.
             var host = ResolveHostCanvas();
+            Main.Handler?.Log($"[JEA][Previewer] ResolveHostCanvas returned: {(host != null ? host.name : "NULL")}");
             if (host == null)
+            {
+                Main.Handler?.Log("[JEA][Previewer] Host canvas is null, aborting UI creation");
                 return;
+            }
 
             var canvasObject = new GameObject("JEA_Previewer");
             _canvas = canvasObject.AddComponent<Canvas>();

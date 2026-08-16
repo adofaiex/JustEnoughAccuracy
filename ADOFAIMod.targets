@@ -79,7 +79,8 @@
       <DeployDir Condition="'$(Loader)' == 'ML'">$(GameDir)/Mods/</DeployDir>
       <DeployDir Condition="'$(Loader)' == 'BepInEx'">$(GameDir)/BepInEx/plugins/$(ModName)/</DeployDir>
       <DeployDir Condition="'$(Loader)' == 'Doorstop'">$(GameDir)/</DeployDir>
-      <IsWindows>true</IsWindows>
+      <IsWindows Condition="'$(OS)' == 'Windows_NT'">true</IsWindows>
+      <IsWindows Condition="'$(IsWindows)' != 'true'">false</IsWindows>
     </PropertyGroup>
 
     <ItemGroup Condition="'$(Loader)' != '' AND $(AssemblyName.EndsWith('$(LoaderSuffix)')) AND '$(DeployDir)' != ''">
@@ -92,9 +93,9 @@
     <Copy SourceFiles="@(DeployResources)" DestinationFolder="$(DeployDir)Resources/%(RecursiveDir)" Condition="$(AssemblyName.EndsWith('$(LoaderSuffix)')) AND '$(DeployDir)' != ''" SkipUnchangedFiles="true" />
     <Message Text="Deployed [$(Loader)] → $(DeployDir)" Condition="$(AssemblyName.EndsWith('$(LoaderSuffix)')) AND '$(DeployDir)' != ''" Importance="high" />
 
-    <Exec Command="start &quot;&quot; &quot;$(GameExePath)&quot;" IgnoreExitCode="true"
+    <Exec Command="start &quot;&quot; /D &quot;$(GameDir)&quot; &quot;$(GameExePath)&quot;" IgnoreExitCode="true"
           Condition="'$(IsWindows)' == 'true' AND '$(AutoLaunchGame)' != 'false' AND '$(DeployDir)' != ''" />
-    <Exec Command="nohup &quot;$(GameExePath)&quot; &gt; /dev/null 2&gt;&amp;1 &amp;" IgnoreExitCode="true"
+    <Exec Command="cd &quot;$(GameDir)&quot; &amp;&amp; nohup &quot;$(GameExePath)&quot; &gt; /dev/null 2&gt;&amp;1 &amp;" IgnoreExitCode="true"
           Condition="'$(IsWindows)' != 'true' AND '$(AutoLaunchGame)' != 'false' AND '$(DeployDir)' != ''" />
   </Target>
 

@@ -1,3 +1,5 @@
+using UnityEngine;
+
 namespace JustEnoughAccuracy
 {
     public static class Main
@@ -40,13 +42,31 @@ namespace JustEnoughAccuracy
                                  && ctl.detailedResults != null
                                  && ctl.detailedResults.gameObject.activeSelf;
 
+            Main.Handler?.Log($"[JEA][Main] OnGameUpdate: resultsVisible={resultsVisible}, state={(ctl != null ? ctl.currentState.ToString() : "null")}, detailedResultsActive={(ctl != null && ctl.detailedResults != null ? ctl.detailedResults.gameObject.activeSelf.ToString() : "N/A")}");
+
             if (!resultsVisible)
             {
-                ResultsScreenButton.Hide();
                 JePreviewer.Close();
+                ResultsScreenButton.Hide();
+                Main.Handler?.Log("[JEA][Main] resultsVisible=false, hiding UI");
                 // Leaving the results screen ends the run: wipe the data.
                 if (_resultsWereVisible)
                     JudgementRecorder.Clear();
+            }
+            else
+            {
+                Main.Handler?.Log("[JEA][Main] resultsVisible=true, keeping UI");
+                ResultsScreenButton.Hide();
+                var ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+                var f8 = Input.GetKeyDown(KeyCode.F8);
+                if (ctrl && f8)
+                {
+                    Main.Handler?.Log("[JEA][Main] Ctrl+F8 detected, toggling previewer");
+                    if (JePreviewer.IsOpen)
+                        JePreviewer.Close();
+                    else
+                        JePreviewer.Open();
+                }
             }
 
             _resultsWereVisible = resultsVisible;

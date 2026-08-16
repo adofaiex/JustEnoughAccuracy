@@ -4,152 +4,78 @@ using UnityEngine.UI;
 
 namespace JustEnoughAccuracy
 {
-    /// <summary>
-    /// The "浏览详细信息" button shown alongside the official results screen.
-    /// Clicking opens the <see cref="JePreviewer"/>. Hidden when results hide.
-    /// </summary>
     public static class ResultsScreenButton
     {
-        private static Canvas? _canvas;
+        private static GameObject? _root;
         private static Button? _button;
 
         public static void Show()
         {
             EnsureUI();
-            PositionNearResultsText();
-            if (_canvas != null)
-                _canvas.gameObject.SetActive(true);
-        }
-
-        /// <summary>
-        /// Places the button right below the official results text so it sits
-        /// next to the JEA summary line instead of floating at screen centre.
-        /// Failure here must never prevent the button from showing.
-        /// </summary>
-        private static void PositionNearResultsText()
-        {
-            if (_button == null || _canvas == null) return;
-
-            try
-            {
-                var ctl = scrController.instance;
-                if (ctl == null || ctl.detailedResults == null) return;
-
-                var textRect = ctl.detailedResults.textComponent?.rectTransform;
-                if (textRect == null) return;
-
-                // Bottom edge of the results text, in world space, then to screen.
-                var corners = new Vector3[4];
-                textRect.GetWorldCorners(corners); // 0 BL, 1 TL, 2 TR, 3 BR
-                var bottomCenter = (corners[0] + corners[3]) * 0.5f;
-                var screenPos = RectTransformUtility.WorldToScreenPoint(null, bottomCenter);
-
-                // Screen point → this canvas' local coords (handles the scaler).
-                var canvasRect = _canvas.GetComponent<RectTransform>();
-                if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, screenPos, null, out var localPoint))
-                    return;
-
-                var btnRect = _button.GetComponent<RectTransform>();
-                btnRect.anchoredPosition = new Vector2(localPoint.x, localPoint.y - 14f);
-            }
-            catch
-            {
-                // Position is best-effort; keep the button visible regardless.
-            }
+            if (_root == null) return;
+            _root.SetActive(true);
         }
 
         public static void Hide()
         {
-            if (_canvas != null)
-                _canvas.gameObject.SetActive(false);
+            if (_root != null)
+            {
+                _root.SetActive(false);
+                UnityEngine.Object.Destroy(_root);
+                _root = null;
+                _button = null;
+            }
         }
 
         private static void EnsureUI()
         {
-            if (_canvas != null)
-                return;
+            if (_root != null) return;
 
-            // Host the button inside the SAME canvas that renders the results text so it
-            // sorts in the same render tree as the detail text (a standalone overlay
-            // canvas is NOT guaranteed to draw above it). overrideSorting keeps us on
-            // top of every sibling in that canvas.
-            var host = ResolveHostCanvas();
-            if (host == null)
-            {
-                // Results UI isn't up yet; the patch will re-Show() once it is.
-                return;
-            }
+            var ctl = scrController.instance;
+            if (ctl?.detailedResults?.textComponent == null) return;
 
-            var canvasObject = new GameObject("JEA_ResultsButton", typeof(RectTransform));
-            _canvas = canvasObject.AddComponent<Canvas>();
-            canvasObject.transform.SetParent(host.transform, false);
-            _canvas.overrideSorting = true;
-            // One below the previewer so the previewer always renders on top.
-            _canvas.sortingOrder = 2147483646;
-            var scaler = canvasObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-            scaler.matchWidthOrHeight = 1f;
-            canvasObject.AddComponent<GraphicRaycaster>();
-            var bridgeRect = (RectTransform)canvasObject.transform;
-            bridgeRect.anchorMin = Vector2.zero;
-            bridgeRect.anchorMax = Vector2.one;
-            bridgeRect.offsetMin = Vector2.zero;
-            bridgeRect.offsetMax = Vector2.zero;
+            // Parent to the text's parent so we share the same layout coordinate space.
+            var textGO = ctl.detailedResults.textComponent.gameObject;
+            var parent = textGO.transform.parent;
+            if (parent == null) return;
 
-            var btnObj = new GameObject("BrowseDetails", typeof(RectTransform));
-            btnObj.transform.SetParent(canvasObject.transform, false);
-            var btnRect = (RectTransform)btnObj.transform;
-            btnRect.anchorMin = new Vector2(0.5f, 0.5f);
-            btnRect.anchorMax = new Vector2(0.5f, 0.5f);
-            btnRect.pivot = new Vector2(0.5f, 0.5f);
-            btnRect.anchoredPosition = new Vector2(0f, -220f);
+            _root = new GameObject("JEA_ResultsButton", typeof(RectTransform), typeof(Image), typeof(Button));
+            _root.transform.SetParent(parent, false);
+            _root.SetActive(false);
+
+            var btnRect = (RectTransform)_root.transform;
+            btnRect.anchorMin = new Vector2(0.5f, 1f);
+            btnRect.anchorMax = new Vector2(0.5f, 1f);
+            btnRect.pivot = new Vector2(0.5f, 1f);
+            btnRect.anchoredPosition = new Vector2(0f, -8f);
             btnRect.sizeDelta = new Vector2(220f, 48f);
 
-            var bg = btnObj.AddComponent<Image>();
+            var bg = _root.GetComponent<Image>();
             bg.color = new Color(0.16f, 0.55f, 0.38f, 0.9f);
 
-            var textObj = new GameObject("Label", typeof(RectTransform));
-            textObj.transform.SetParent(btnObj.transform, false);
-            var textRect = (RectTransform)textObj.transform;
-            textRect.anchorMin = Vector2.zero;
-            textRect.anchorMax = Vector2.one;
-            textRect.pivot = new Vector2(0.5f, 0.5f);
-            textRect.offsetMin = Vector2.zero;
-            textRect.offsetMax = Vector2.zero;
-            var text = textObj.AddComponent<TextMeshProUGUI>();
+            var textObj = new GameObject("Label", typeof(RectTransform), typeof(TextMeshProUGUI));
+            textObj.transform.SetParent(_root.transform, false);
+            var tr = (RectTransform)textObj.transform;
+            tr.anchorMin = Vector2.zero;
+            tr.anchorMax = Vector2.one;
+            tr.pivot = new Vector2(0.5f, 0.5f);
+            tr.offsetMin = Vector2.zero;
+            tr.offsetMax = Vector2.zero;
+
+            var text = textObj.GetComponent<TextMeshProUGUI>();
             text.font = JeFont.Get();
             text.text = "<b>浏览详细信息</b>";
             text.fontSize = 22f;
             text.alignment = TextAlignmentOptions.Center;
             text.color = Color.white;
 
-            _button = btnObj.AddComponent<Button>();
+            _button = _root.GetComponent<Button>();
             _button.targetGraphic = bg;
-            _button.onClick.AddListener(JePreviewer.Open);
-
-            _canvas.gameObject.SetActive(false);
-        }
-
-        /// <summary>
-        /// Finds the canvas the official results text is actually rendered on. Preferring
-        /// the results text's own canvas over the generic HUD canvas, because the two are
-        /// NOT guaranteed to be the same object.
-        /// </summary>
-        private static Canvas? ResolveHostCanvas()
-        {
-            var ctl = scrController.instance;
-            if (ctl != null && ctl.detailedResults != null)
+            _button.onClick.AddListener(() => 
             {
-                var textCanvas = ctl.detailedResults.textComponent?.canvas;
-                if (textCanvas != null)
-                    return textCanvas;
-            }
-
-            if (scrUIController.instance != null && scrUIController.instance.canvas != null)
-                return scrUIController.instance.canvas;
-
-            return null;
+                Main.Handler?.Log("[JEA][Btn] Button clicked!");
+                JePreviewer.Open();
+            });
         }
     }
 }
