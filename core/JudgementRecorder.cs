@@ -58,9 +58,9 @@ namespace JustEnoughAccuracy
             double timestamp,
             double rawDevDeg,
             double normalizedDevDeg,
-            int jeaTileScore,
-            long jeaFinalTileScore,
-            long jeaTotalScore,
+            double jeaTileScore,
+            double jeaFinalTileScore,
+            double jeaTotalScore,
             long jeaAccuracy,
             int combo,
             HitMargin margin,
@@ -89,6 +89,7 @@ namespace JustEnoughAccuracy
             lock (Sync)
             {
                 record.NeaScore = NeaLink.ReadScoreAt(Records.Count);
+                record.NeaAcc = NeaLink.ReadAccAt(Records.Count);
                 Records.Add(record);
             }
         }

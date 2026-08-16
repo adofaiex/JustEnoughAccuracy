@@ -20,14 +20,14 @@ namespace JustEnoughAccuracy
         /// <summary>Deviation normalized to the reference BPM (degrees at ReferenceBpm).</summary>
         public double NormalizedDeviationDeg { get; set; }
 
-        /// <summary>JEA band score for this tile.</summary>
-        public int JeaTileScore { get; set; }
+        /// <summary>JEA interpolated score for this tile (e.g. 97.3).</summary>
+        public double JeaTileScore { get; set; }
 
-        /// <summary>JEA committed tile score (same as the band score, no multiplier).</summary>
-        public long JeaFinalTileScore { get; set; }
+        /// <summary>JEA committed tile score (same as the interpolated score, no multiplier).</summary>
+        public double JeaFinalTileScore { get; set; }
 
         /// <summary>JEA cumulative total score up to and including this tile.</summary>
-        public long JeaTotalScore { get; set; }
+        public double JeaTotalScore { get; set; }
 
         /// <summary>JEA accuracy (hundred-thousandths, 1_000_000 == 100%) up to this tile.</summary>
         public long JeaAccuracy { get; set; }
@@ -49,6 +49,10 @@ namespace JustEnoughAccuracy
 
         /// <summary>NEA per-tile score (100 - |ms|), null when NEA is not present.</summary>
         public long? NeaScore { get; set; }
+
+        /// <summary>NEA running accuracy in percent (0..100, may dip below 0 with
+        /// fails) up to this tile, null when NEA is not present.</summary>
+        public double? NeaAcc { get; set; }
 
         /// <summary>Whether this tile was an empty press (multipress / overpress / too-early).</summary>
         public bool IsEmptyPress { get; set; }

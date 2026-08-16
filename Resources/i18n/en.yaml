@@ -1,0 +1,59 @@
+# JustEnoughAccuracy English UI strings.
+# Values may contain {0}-style string.Format placeholders.
+
+_lang:
+  code: en
+  systemLanguages:
+    - English
+
+results:
+  button: "Detailed Results"
+  # {0}=score {1}=accuracy% {2}=max combo {3}=tiles
+  line: "JEA: {0} ({1}%) | Combo {2} | Tiles {3}"
+
+previewer:
+  searchPlaceholder: "Search…"
+  export: "Export Report"
+  exportFormat: "Export Format"
+  exportYaml: "YAML Data"
+  exportChart: "Line Chart (HTML)"
+  exportSeries: "Chart Series"
+  exportConfirm: "Export"
+  exportCancel: "Cancel"
+  noRecords: "No records"
+
+settings:
+  enabled: "Enable JustEnoughAccuracy"
+  displayJudgement: "Show score in judgement texts"
+  noDisplayPerfect: "Hide on Pure Perfect"
+  displayResults: "Show summary in detailed results"
+  hint: "The scoring model (bands, penalties, tolerance) is fixed by design."
+
+margin:
+  TooEarly: "Too Early"
+  VeryEarly: "Very Early"
+  EarlyPerfect: "Early Perfect"
+  Perfect: "Perfect"
+  LatePerfect: "Late Perfect"
+  VeryLate: "Very Late"
+  TooLate: "Too Late"
+  Multipress: "Multipress"
+  FailMiss: "Miss"
+  FailOverload: "Overload"
+  Auto: "Auto"
+  OverPress: "Overpress"
+
+chart:
+  jeaAcc: "JEA"
+  neaAcc: "NEA"
+  jeaScore: "JEA Score"
+  neaScore: "NEA Score"
+  acc: "Acc"
+  xacc: "X-Acc"
+  dev: "Deviation°"
+  finalAcc: "Final JEA"
+  legendHint: "Click legend to toggle · Wheel to zoom · Drag to pan · Double-click to reset"
+  statScore: "JEA Score"
+  statAcc: "Accuracy"
+  statCombo: "Max Combo"
+  statTiles: "Tiles"

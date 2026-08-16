@@ -6,30 +6,68 @@ namespace JustEnoughAccuracy
     /// <summary>
     /// JEA scoring engine.
     ///
-    /// 赋分制 (point-allocation): every tile's raw angle deviation is mapped to a fixed
-    /// score band, no BPM / ms conversion involved.
+    /// 赋分制 (point-allocation): the tile's raw angle deviation is normalized to
+    /// a reference BPM and graded on a FIXED band table — the score interpolates
+    /// linearly inside each band, so every point value (95, 97, 98.4 …) is
+    /// reachable instead of only the band anchors.
     ///
-    /// 连锁 (combo): consecutive tiles scoring at or above <see cref="Settings.ComboThreshold"/>
-    /// grow a combo that is tracked for display only — it does NOT multiply tile scores, so
-    /// accuracy is capped at 100%.
+    /// The band table and all penalties are constants by design: JEA is meant to
+    /// be one fixed judgement, not a configurable one.
+    ///
+    /// 连锁 (combo): consecutive tiles scoring at or above <see cref="ComboThreshold"/>
+    /// grow a combo that is tracked for display only — it does NOT multiply tile
+    /// scores, so accuracy is capped at 100%.
     ///
     /// 空敲容错 (empty-press tolerance): mirrors the official <c>consecMultipressCounter &gt; 8</c>
-    /// rule — the first N consecutive empty presses are forgiven, after which each one costs a
-    /// penalty and resets the combo.
+    /// rule — the first N consecutive empty presses are forgiven, after which each one
+    /// costs a penalty and resets the combo.
     /// </summary>
     public static class JeaScore
     {
-        private static readonly List<long> _scoreLog = new();
+        // ── fixed scoring model ────────────────────────────────────────────
+        //
+        // Bands are in normalized degrees (see NormalizeDeviation). Score is
+        // linearly interpolated between neighbouring anchors:
+        //   1.7°→100 (full-score window), 2.0°→96, … 8.0°→15, >8°→0.
+        // Anchor mapping: full score = 1.7° normalized (≈ ±43.5° at 2560 BPM,
+        // an 87°-wide full-score window), zero line = 8° (≈ 205° at 2560 BPM,
+        // past the official TooEarly boundary — a hit always scores > 0).
+        private static readonly (double Deg, int Score)[] Bands =
+        {
+            (1.7, 100),
+            (2.0, 96),
+            (2.4, 92),
+            (2.8, 88),
+            (3.2, 84),
+            (3.6, 80),
+            (4.0, 75),
+            (4.5, 70),
+            (5.0, 62),
+            (5.5, 54),
+            (6.0, 46),
+            (6.6, 36),
+            (7.2, 26),
+            (8.0, 15),
+        };
+
+        private const double ReferenceBpmValue = 100;
+        private const int ComboThreshold = 50;
+        private const int EmptyPressTolerance = 8;
+        private const int EmptyPressPenaltyScore = 100;
+        private const int FailMissScoreValue = -100;
+        private const int FailOverloadScoreValue = -100;
+
+        private static readonly List<double> _scoreLog = new();
         private static readonly List<int> _tileLog = new();
         private static readonly List<int> _comboLog = new();
         private static readonly List<int> _emptyLog = new();
 
-        public static IReadOnlyList<long> ScoreLog => _scoreLog;
+        public static IReadOnlyList<double> ScoreLog => _scoreLog;
         public static IReadOnlyList<int> TileLog => _tileLog;
         public static IReadOnlyList<int> ComboLog => _comboLog;
         public static IReadOnlyList<int> EmptyLog => _emptyLog;
 
-        public static long TotalScore { get; private set; }
+        public static double TotalScore { get; private set; }
         public static int Tiles { get; private set; }
         public static int Combo { get; private set; }
         public static int MaxCombo { get; private set; }
@@ -42,11 +80,11 @@ namespace JustEnoughAccuracy
         /// <summary>Track's set BPM for the current hit, set by the SwitchChosen patch.</summary>
         public static double CurrentBpm { get; set; } = 100;
 
-        /// <summary>Fixed band score of the current hit, set by the SwitchChosen patch.</summary>
-        public static int TileScore { get; set; }
+        /// <summary>Interpolated band score of the current hit, set by the SwitchChosen patch.</summary>
+        public static double TileScore { get; set; }
 
         /// <summary>Final committed tile score (combo applied) of the last hit.</summary>
-        public static long LastFinalTileScore { get; private set; }
+        public static double LastFinalTileScore { get; private set; }
 
         /// <summary>Last committed operation kind, used by the recorder.</summary>
         public static LastOp LastOperation { get; private set; }
@@ -69,13 +107,24 @@ namespace JustEnoughAccuracy
             CachedAccuracy = 0;
         }
 
-        /// <summary>Look up the fixed score band for an absolute deviation in degrees.</summary>
-        public static int BaseScore(double absDeviationDeg)
+        /// <summary>
+        /// Interpolated score for an absolute (normalized) deviation in degrees:
+        /// 100 inside the full-score window, then linear between band anchors,
+        /// 0 beyond the last one.
+        /// </summary>
+        public static double BaseScore(double absDeviationDeg)
         {
-            foreach (var band in Main.Settings.AngleBands)
+            if (absDeviationDeg <= Bands[0].Deg)
+                return Bands[0].Score;
+            for (var i = 1; i < Bands.Length; i++)
             {
-                if (absDeviationDeg <= band.MaxDeviationDeg)
-                    return band.Score;
+                if (absDeviationDeg <= Bands[i].Deg)
+                {
+                    var (d0, s0) = Bands[i - 1];
+                    var (d1, s1) = Bands[i];
+                    var t = (absDeviationDeg - d0) / (d1 - d0);
+                    return s0 + (s1 - s0) * t;
+                }
             }
             return 0;
         }
@@ -87,9 +136,8 @@ namespace JustEnoughAccuracy
         /// </summary>
         public static double NormalizeDeviation(double absDeviationDeg)
         {
-            var reference = Main.Settings.ReferenceBpm <= 0 ? 100 : Main.Settings.ReferenceBpm;
-            var bpm = CurrentBpm <= 0 ? reference : CurrentBpm;
-            return absDeviationDeg * reference / bpm;
+            var bpm = CurrentBpm <= 0 ? ReferenceBpmValue : CurrentBpm;
+            return absDeviationDeg * ReferenceBpmValue / bpm;
         }
 
         /// <summary>What the last committed operation was, for the judgement recorder.</summary>
@@ -102,7 +150,7 @@ namespace JustEnoughAccuracy
             Noop
         }
 
-        private static void SetLastOp(LastOp op, long finalTileScore)
+        private static void SetLastOp(LastOp op, double finalTileScore)
         {
             LastOperation = op;
             LastFinalTileScore = finalTileScore;
@@ -111,22 +159,19 @@ namespace JustEnoughAccuracy
         /// <summary>Commit a scored tile (deviation already captured).</summary>
         public static void AddTile()
         {
-            var s = Main.Settings;
             var baseScore = BaseScore(NormalizeDeviation(Math.Abs(CurrentDeviationDeg)));
-            Combo = baseScore >= s.ComboThreshold ? Combo + 1 : 0;
+            Combo = baseScore >= ComboThreshold ? Combo + 1 : 0;
             MaxCombo = Math.Max(MaxCombo, Combo);
             ConsecutiveEmptyPresses = 0;
 
-            var tileScore = baseScore;
-            SetLastOp(LastOp.Tile, tileScore);
-            Commit(tileScore, tile: true);
+            SetLastOp(LastOp.Tile, baseScore);
+            Commit(baseScore, tile: true);
         }
 
         /// <summary>Commit a failed tile (miss / overload).</summary>
         public static void AddFail(bool overload)
         {
-            var s = Main.Settings;
-            var tileScore = overload ? s.FailOverloadScore : s.FailMissScore;
+            var tileScore = overload ? (double)FailOverloadScoreValue : FailMissScoreValue;
             Combo = 0;
             ConsecutiveEmptyPresses = 0;
             SetLastOp(LastOp.Fail, tileScore);
@@ -140,22 +185,21 @@ namespace JustEnoughAccuracy
         /// </summary>
         public static void AddEmptyPress()
         {
-            var s = Main.Settings;
             ConsecutiveEmptyPresses++;
             EmptyPresses++;
-            if (ConsecutiveEmptyPresses <= s.EmptyPressTolerance)
+            if (ConsecutiveEmptyPresses <= EmptyPressTolerance)
             {
                 SetLastOp(LastOp.EmptyPress, 0);
                 Commit(0, tile: false);
                 return;
             }
             Combo = 0;
-            var penalty = -s.EmptyPressPenalty;
+            var penalty = -(double)EmptyPressPenaltyScore;
             SetLastOp(LastOp.EmptyPress, penalty);
             Commit(penalty, tile: false);
         }
 
-        private static void Commit(long delta, bool tile)
+        private static void Commit(double delta, bool tile)
         {
             if (tile)
             {
@@ -189,7 +233,6 @@ namespace JustEnoughAccuracy
                 ? 0
                 : (long)Math.Round(TotalScore * 1_000_000.0 / (Tiles * 100.0));
         }
-
         /// <summary>
         /// Fired after the score state is refreshed (see <see cref="Cache"/>).
         /// Other mods can subscribe to react to JEA updates without referencing Unity.

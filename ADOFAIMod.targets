@@ -48,9 +48,9 @@
           Condition="Exists('$(ProjectDir)doorstop_config.ini')"
           SkipUnchangedFiles="true" />
 
-    <!-- core project brings Resources -->
+    <!-- core project brings Resources (repo-root Resources/, not per-project) -->
     <ItemGroup Condition="'$(IsCoreProject)' == 'true'">
-      <ResourceFiles Include="$(ProjectDir)Resources\**\*" Exclude="$(ProjectDir)Resources\**\*\" />
+      <ResourceFiles Include="$(MSBuildThisFileDirectory)Resources\**\*" />
     </ItemGroup>
     <MakeDir Directories="$(RootOutDir)Resources\" Condition="'$(IsCoreProject)' == 'true'" />
     <Copy SourceFiles="@(ResourceFiles)" DestinationFolder="$(RootOutDir)Resources\%(RecursiveDir)"
@@ -83,9 +83,15 @@
       <IsWindows Condition="'$(IsWindows)' != 'true'">false</IsWindows>
     </PropertyGroup>
 
+    <!-- Deploy only what this loader actually needs: its own dll + Core + mod
+ metadata. Copying out\*.dll instead ships OTHER loaders' dlls too, and races
+ with their parallel builds (glob sees a dll, Copy finds it gone → MSB3030).
+ Keep the Exists() filter as belt-and-braces for parallel builds. -->
     <ItemGroup Condition="'$(Loader)' != '' AND $(AssemblyName.EndsWith('$(LoaderSuffix)')) AND '$(DeployDir)' != ''">
-      <DeployFiles Include="$(RootOutDir)*.dll;$(RootOutDir)*.json;$(RootOutDir)*.ini" />
-      <DeployResources Include="$(RootOutDir)Resources\**\*" Exclude="$(RootOutDir)Resources\**\*\" />
+      <DeployFilesRaw Include="$(RootOutDir)$(AssemblyName).dll;$(RootOutDir)$(ModName).Core.dll;$(RootOutDir)*.json;$(RootOutDir)*.ini" />
+      <DeployFiles Include="@(DeployFilesRaw)" Condition="Exists('%(Identity)')" />
+      <DeployResourcesRaw Include="$(RootOutDir)Resources\**\*" />
+      <DeployResources Include="@(DeployResourcesRaw)" Condition="Exists('%(Identity)')" />
     </ItemGroup>
 
     <MakeDir Directories="$(DeployDir)Resources/" Condition="$(AssemblyName.EndsWith('$(LoaderSuffix)')) AND '$(DeployDir)' != ''" />

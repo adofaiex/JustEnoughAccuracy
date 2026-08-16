@@ -22,13 +22,14 @@ namespace JustEnoughAccuracy
         private const float SearchHeight = 42f;
         private const float RowHeight = 30f;
         private const float ButtonSize = 44f;
+        private const string TitleMarkup = "<b><color=#FFFFFFFF>JustEnoughAcc</color></b>";
 
         private sealed class RowWidget
         {
-            public GameObject Root;
-            public RectTransform Rect;
-            public TextMeshProUGUI Text;
-            public JudgementRecord Record;
+            public GameObject Root = null!;
+            public RectTransform Rect = null!;
+            public TextMeshProUGUI Text = null!;
+            public JudgementRecord Record = null!;
         }
 
         private static readonly List<RowWidget> Rows = new();
@@ -40,6 +41,10 @@ namespace JustEnoughAccuracy
         private static Image? _border;
         private static TextMeshProUGUI? _title;
         private static TMP_InputField? _search;
+        private static GameObject? _exportMenu;
+        private static GameObject? _seriesMenu;
+        // Unchecked chart series ids; empty set means "all on" (default).
+        private static readonly HashSet<string> _chartSeriesOff = new();
         private static RectTransform? _viewportRect;
         private static RectTransform? _contentRect;
         private static TextMeshProUGUI? _summary;
@@ -48,7 +53,6 @@ namespace JustEnoughAccuracy
         private static Sprite? _fillSprite;
         private static Sprite? _ringSprite;
         private static TMP_FontAsset? _font;
-        private static bool _fontLogged;
 
         private static int _visibleCount;
         private static float _maxScroll;
@@ -63,25 +67,44 @@ namespace JustEnoughAccuracy
         public static void Open()
         {
             Main.Handler?.Log("[JEA][Previewer] Open() called");
-            EnsureUI();
-            Main.Handler?.Log($"[JEA][Previewer] After EnsureUI: _canvas={(_canvas != null)}");
+            try
+            {
+                EnsureUI();
+            }
+            catch (Exception ex)
+            {
+                Main.Handler?.Error($"[JEA][Previewer] EnsureUI failed: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+            }
             IsOpen = true;
             _scrollOffset = 0f;
-            Refresh();
+            // Reset the title and the search filter: the previous run may have
+            // left a "✓ exported" state or a stale search term behind.
+            if (_title != null)
+                _title.text = TitleMarkup;
+            if (_search != null)
+                _search.text = "";
             if (_canvas != null)
             {
+                _canvas.transform.SetAsLastSibling();
                 _canvas.gameObject.SetActive(true);
-                Main.Handler?.Log("[JEA][Previewer] canvas activated");
             }
-            else
+            try
             {
-                Main.Handler?.Log("[JEA][Previewer] _canvas is null, previewer NOT shown");
+                Refresh();
+            }
+            catch (Exception ex)
+            {
+                Main.Handler?.Error($"[JEA][Previewer] Refresh failed: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
             }
         }
 
         public static void Close()
         {
             IsOpen = false;
+            if (_exportMenu != null)
+                _exportMenu.SetActive(false);
+            if (_seriesMenu != null)
+                _seriesMenu.SetActive(false);
             if (_canvas != null)
                 _canvas.gameObject.SetActive(false);
         }
@@ -105,7 +128,10 @@ namespace JustEnoughAccuracy
             // Auto-refresh whenever the search text or data changed.
             var filter = _search != null ? _search.text : "";
             if (filter != _lastFilter || JudgementRecorder.Count != _visibleCount)
-                Refresh();
+            {
+                try { Refresh(); }
+                catch (Exception ex) { Main.Handler?.Error($"[JEA][Previewer] Refresh failed: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}"); }
+            }
         }
 
         private static void HandleScroll()
@@ -148,38 +174,48 @@ namespace JustEnoughAccuracy
             _visibleCount = matches.Count;
             Main.Handler?.Log($"[JEA][Previewer] matches={matches.Count}, records={records.Count}");
 
-            // summary line
-            Builder.Append("<color=#AEB8C4>JEA </color>")
-                .Append("<b><color=#FFFFFFFF>")
-                .Append((JeaScore.TotalScore).ToString(CultureInfo.InvariantCulture))
-                .Append("</color></b>")
-                .Append("  <color=#AEB8C4>|</color>  <color=#7CE0B3>")
-                .Append((JeaScore.CachedAccuracy / 10000m).ToString("0.0000", CultureInfo.InvariantCulture))
-                .Append("%</color>")
-                .Append("  <color=#AEB8C4>|</color>  x")
+            // summary line — compact: score | acc% | combo | tiles
+            Builder.Append("<color=#7CE0B3>")
+                .Append(JeaScore.TotalScore.ToString("0.##", CultureInfo.InvariantCulture))
+                .Append("</color>")
+                .Append("  <color=#5F6771>|</color>  ")
+                .Append((JeaScore.CachedAccuracy / 10000m).ToString("0.00", CultureInfo.InvariantCulture))
+                .Append("<color=#7CE0B3>%</color>")
+                .Append("  <color=#5F6771>|</color>  x")
                 .Append(JeaScore.MaxCombo.ToString(CultureInfo.InvariantCulture))
-                .Append("  <color=#AEB8C4>|</color>  ")
+                .Append("  <color=#5F6771>|</color>  ")
                 .Append(matches.Count.ToString(CultureInfo.InvariantCulture))
-                .Append(" / ")
+                .Append("<color=#5F6771>/</color>")
                 .Append(records.Count.ToString(CultureInfo.InvariantCulture))
                 .Append(" <color=#5F6771>tiles</color>");
             _summary!.text = Builder.ToString();
 
             // rows
             var limit = Math.Min(matches.Count, 1000);
-            for (var i = 0; i < limit; i++)
+            if (matches.Count == 0)
             {
-                var row = GetRow(i);
-                row.Record = matches[i];
-                Builder.Length = 0;
-                BuildRowText(Builder, matches[i]);
-                row.Text.text = Builder.ToString();
+                var row = GetRow(0);
+                row.Text.text = "<color=#5F6771>" + JeI18n.Get("previewer.noRecords") + "</color>";
                 if (!row.Root.activeSelf)
                     row.Root.SetActive(true);
+                limit = 1;
+            }
+            else
+            {
+                for (var i = 0; i < limit; i++)
+                {
+                    var row = GetRow(i);
+                    row.Record = matches[i];
+                    Builder.Length = 0;
+                    BuildRowText(Builder, matches[i]);
+                    row.Text.text = Builder.ToString();
+                    if (!row.Root.activeSelf)
+                        row.Root.SetActive(true);
+                }
             }
             HideUnusedRows(limit);
 
-            _contentRect!.sizeDelta = new Vector2(0f, limit * RowHeight);
+            _contentRect!.sizeDelta = new Vector2(PanelWidth - Padding * 2f, limit * RowHeight);
             var viewportH = _viewportRect!.rect.height;
             _maxScroll = Mathf.Max(0f, limit * RowHeight - viewportH);
             _scrollOffset = Mathf.Clamp(_scrollOffset, 0f, _maxScroll);
@@ -201,9 +237,9 @@ namespace JustEnoughAccuracy
             sb.Append(record.Tile.ToString(CultureInfo.InvariantCulture)).Append(' ')
                 .Append(ReportExporter.FormatTimestampPublic(record.Timestamp)).Append(' ')
                 .Append(record.Margin).Append(' ')
-                .Append(record.JeaTileScore.ToString(CultureInfo.InvariantCulture)).Append(' ')
-                .Append(record.JeaFinalTileScore.ToString(CultureInfo.InvariantCulture)).Append(' ')
-                .Append(record.JeaTotalScore.ToString(CultureInfo.InvariantCulture)).Append(' ')
+                .Append(record.JeaTileScore.ToString("0.#", CultureInfo.InvariantCulture)).Append(' ')
+                .Append(record.JeaFinalTileScore.ToString("0.###", CultureInfo.InvariantCulture)).Append(' ')
+                .Append(record.JeaTotalScore.ToString("0.###", CultureInfo.InvariantCulture)).Append(' ')
                 .Append(record.OfficialScore?.ToString(CultureInfo.InvariantCulture) ?? "").Append(' ')
                 .Append(record.NeaScore?.ToString(CultureInfo.InvariantCulture) ?? "").Append(' ')
                 .Append(record.RawDeviationDeg.ToString("0.###", CultureInfo.InvariantCulture)).Append(' ')
@@ -226,35 +262,19 @@ namespace JustEnoughAccuracy
                 _ => "#FFFFFF"
             };
 
+            // Compact: #tile  time  margin  score  deviation. Extra columns
+            // (combo/Acc/Off/NEA) overflowed the panel width.
             sb.Append("<color=#5F6771>#")
                 .Append(r.Tile.ToString(CultureInfo.InvariantCulture))
-                .Append("</color>  <color=#AEB8C4>")
+                .Append("</color> <color=#AEB8C4>")
                 .Append(ReportExporter.FormatTimestampPublic(r.Timestamp))
-                .Append("</color>  <b><color=")
+                .Append("</color> <b><color=")
                 .Append(marginColor)
                 .Append(">")
                 .Append(r.Margin)
-                .Append("</color></b>  <color=#AEB8C4>JEA </color><b><color=#FFFFFFFF>")
-                .Append(r.JeaTileScore.ToString(CultureInfo.InvariantCulture))
-                .Append("</color></b> <color=#5F6771>x")
-                .Append(r.Combo.ToString(CultureInfo.InvariantCulture))
-                .Append("</color>  <color=#AEB8C4>Acc ")
-                .Append((r.Acc * 100f).ToString("0.00", CultureInfo.InvariantCulture))
-                .Append("% / X-Acc ")
-                .Append((r.XAcc * 100f).ToString("0.00", CultureInfo.InvariantCulture))
-                .Append("%</color>");
-
-            if (r.OfficialScore != null)
-                sb.Append("  <color=#AEB8C4>Off </color><b><color=#F3D98B>")
-                    .Append(r.OfficialScore.Value.ToString(CultureInfo.InvariantCulture))
-                    .Append("</color></b>");
-
-            if (r.NeaScore != null)
-                sb.Append("  <color=#AEB8C4>NEA </color><b><color=#8AA7FF>")
-                    .Append(r.NeaScore.Value.ToString(CultureInfo.InvariantCulture))
-                    .Append("</color></b>");
-
-            sb.Append("  <color=#5F6771>")
+                .Append("</color></b> <b><color=#FFFFFFFF>")
+                .Append(r.JeaTileScore.ToString("0.###", CultureInfo.InvariantCulture))
+                .Append("</color></b> <color=#5F6771>")
                 .Append(FormatDev(r.RawDeviationDeg))
                 .Append("°</color>");
         }
@@ -294,15 +314,25 @@ namespace JustEnoughAccuracy
             }
 
             var canvasObject = new GameObject("JEA_Previewer");
-            _canvas = canvasObject.AddComponent<Canvas>();
             canvasObject.transform.SetParent(host.transform, false);
+            _canvas = canvasObject.AddComponent<Canvas>();
+            // High enough to beat every other canvas, but not exactly int.MaxValue
+            // (which wraps negative if anything increments it). 30000 was verified
+            // too low — a fullscreen canvas above it hid the button entirely.
             _canvas.overrideSorting = true;
-            _canvas.sortingOrder = 2147483647;
-            var scaler = canvasObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-            scaler.matchWidthOrHeight = 1f;
+            _canvas.sortingOrder = 2000000000;
             canvasObject.AddComponent<GraphicRaycaster>();
+            // Stretch to fill the host canvas so the centered panel lands mid-screen.
+            // (Canvas requires a RectTransform, so this cast is only valid after
+            // AddComponent<Canvas>; doing it earlier throws InvalidCastException.)
+            var canvasRect = (RectTransform)canvasObject.transform;
+            canvasRect.anchorMin = Vector2.zero;
+            canvasRect.anchorMax = Vector2.one;
+            canvasRect.offsetMin = Vector2.zero;
+            canvasRect.offsetMax = Vector2.zero;
+            canvasObject.transform.SetAsLastSibling();
+            // Build hidden; Open() activates only after construction fully succeeded.
+            canvasObject.SetActive(false);
 
             var panelObject = new GameObject("Panel", typeof(RectTransform));
             panelObject.transform.SetParent(canvasObject.transform, false);
@@ -321,7 +351,7 @@ namespace JustEnoughAccuracy
             var drag = panelObject.AddComponent<PanelDrag>();
             drag.Setup(_panelRect, _canvas);
 
-            _border = CreateChildImage(panelObject, "Border", _ringSprite, new Color(1f, 1f, 1f, 0.90f));
+            _border = CreateChildImage(panelObject, "Border", _ringSprite!, new Color(1f, 1f, 1f, 0.90f));
             _border.type = Image.Type.Sliced;
             var borderRect = (RectTransform)_border.transform;
             borderRect.anchorMin = Vector2.zero;
@@ -332,7 +362,7 @@ namespace JustEnoughAccuracy
 
             // title
             _title = CreateText(panelObject, "Title", 24f);
-            _title.text = "<b><color=#FFFFFFFF>JEA</color><color=#7CE0B3>.Previewer</color></b>";
+            _title.text = TitleMarkup;
             _title.rectTransform.anchoredPosition = new Vector2(Padding, -Padding * 0.7f);
             _title.rectTransform.sizeDelta = new Vector2(PanelWidth - Padding * 2f, TitleHeight);
 
@@ -385,8 +415,6 @@ namespace JustEnoughAccuracy
             inputRect.offsetMin = new Vector2(10f, 3f);
             inputRect.offsetMax = new Vector2(-10f, -3f);
             _search = inputObj.AddComponent<TMP_InputField>();
-            if (_font != null)
-                _search.fontAsset = _font;
 
             var textObj = new GameObject("Text", typeof(RectTransform));
             textObj.transform.SetParent(inputObj.transform, false);
@@ -412,7 +440,7 @@ namespace JustEnoughAccuracy
             phComp.fontSize = 20f;
             phComp.color = new Color(0.55f, 0.60f, 0.68f, 1f);
             phComp.textWrappingMode = TextWrappingModes.NoWrap;
-            phComp.text = "搜索 / Search…";
+            phComp.text = JeI18n.Get("previewer.searchPlaceholder");
             phComp.raycastTarget = false;
             var phRect = (RectTransform)placeholderObj.transform;
             phRect.anchorMin = Vector2.zero;
@@ -421,6 +449,10 @@ namespace JustEnoughAccuracy
             phRect.offsetMin = new Vector2(4f, 0f);
             phRect.offsetMax = Vector2.zero;
             _search.placeholder = phComp;
+            // fontAsset must be assigned only AFTER textComponent/placeholder exist:
+            // TMP's SetGlobalFontAsset dereferences them and NREs otherwise.
+            if (_font != null)
+                _search.fontAsset = _font;
 
             // summary line
             _summary = CreateText(panelObject, "Summary", 19f);
@@ -457,7 +489,7 @@ namespace JustEnoughAccuracy
             exportImage.type = Image.Type.Sliced;
             exportImage.color = new Color(0.16f, 0.55f, 0.38f, 0.9f);
             var exportText = CreateText(exportObj, "T", 19f);
-            exportText.text = "<b>导出报告 / Export</b>";
+            exportText.text = "<b>" + JeI18n.Get("previewer.export") + "</b>";
             exportText.rectTransform.anchorMin = Vector2.zero;
             exportText.rectTransform.anchorMax = Vector2.one;
             exportText.rectTransform.pivot = new Vector2(0.5f, 0.5f);
@@ -466,9 +498,77 @@ namespace JustEnoughAccuracy
             exportText.alignment = TextAlignmentOptions.Center;
             var exportButton = exportObj.AddComponent<Button>();
             exportButton.targetGraphic = exportImage;
-            exportButton.onClick.AddListener(OnExportClicked);
+            exportButton.onClick.AddListener(ToggleExportMenu);
 
-            _canvas.gameObject.SetActive(false);
+            // export format menu (pops up above the export button)
+            var menuObj = new GameObject("ExportMenu", typeof(RectTransform));
+            menuObj.transform.SetParent(panelObject.transform, false);
+            var menuRect = (RectTransform)menuObj.transform;
+            menuRect.anchorMin = new Vector2(1f, 0f);
+            menuRect.anchorMax = new Vector2(1f, 0f);
+            menuRect.pivot = new Vector2(1f, 0f);
+            menuRect.anchoredPosition = new Vector2(-Padding * 0.7f, Padding * 0.7f + ButtonSize + 10f);
+            menuRect.sizeDelta = new Vector2(280f, 158f);
+            var menuBg = menuObj.AddComponent<Image>();
+            menuBg.sprite = _fillSprite;
+            menuBg.type = Image.Type.Sliced;
+            menuBg.color = new Color(0.020f, 0.028f, 0.042f, 0.98f);
+
+            var menuTitle = CreateText(menuObj, "Title", 18f);
+            menuTitle.text = "<b>" + JeI18n.Get("previewer.exportFormat") + "</b>";
+            menuTitle.rectTransform.anchoredPosition = new Vector2(14f, -10f);
+            menuTitle.rectTransform.sizeDelta = new Vector2(252f, 24f);
+
+            MakeMenuButton(menuObj, "Yaml", 14f, -40f, 252f, 42f, "<b>" + JeI18n.Get("previewer.exportYaml") + "</b>", OnExportYamlClicked);
+            MakeMenuButton(menuObj, "Chart", 14f, -90f, 252f, 42f, "<b>" + JeI18n.Get("previewer.exportChart") + "</b>", ShowSeriesMenu);
+
+            menuObj.SetActive(false);
+            _exportMenu = menuObj;
+
+            // chart series menu (second level: checkbox list, default all checked)
+            var seriesList = new List<(string Id, string I18nKey, string Color, bool Right)>();
+            foreach (var s in ReportExporter.ChartSeries)
+            {
+                if (s.Id.StartsWith("nea", StringComparison.Ordinal) && !NeaLink.Available)
+                    continue;
+                seriesList.Add(s);
+            }
+            var seriesMenuH = 12f + 24f + 8f + seriesList.Count * 32f + 10f + 42f + 14f;
+            var seriesMenuObj = new GameObject("SeriesMenu", typeof(RectTransform));
+            seriesMenuObj.transform.SetParent(panelObject.transform, false);
+            var seriesRect = (RectTransform)seriesMenuObj.transform;
+            seriesRect.anchorMin = new Vector2(1f, 0f);
+            seriesRect.anchorMax = new Vector2(1f, 0f);
+            seriesRect.pivot = new Vector2(1f, 0f);
+            seriesRect.anchoredPosition = new Vector2(-Padding * 0.7f, Padding * 0.7f + ButtonSize + 10f);
+            seriesRect.sizeDelta = new Vector2(300f, seriesMenuH);
+            var seriesBg = seriesMenuObj.AddComponent<Image>();
+            seriesBg.sprite = _fillSprite;
+            seriesBg.type = Image.Type.Sliced;
+            seriesBg.color = new Color(0.020f, 0.028f, 0.042f, 0.98f);
+
+            var seriesTitle = CreateText(seriesMenuObj, "Title", 18f);
+            seriesTitle.text = "<b>" + JeI18n.Get("previewer.exportSeries") + "</b>";
+            seriesTitle.rectTransform.anchoredPosition = new Vector2(14f, -10f);
+            seriesTitle.rectTransform.sizeDelta = new Vector2(272f, 24f);
+
+            var rowY = -44f;
+            foreach (var s in seriesList)
+            {
+                MakeSeriesRow(seriesMenuObj, rowY, s.Id, JeI18n.Get(s.I18nKey), s.Color);
+                rowY -= 32f;
+            }
+
+            var buttonsY = -(seriesMenuH - 12f - 42f);
+            MakeMenuButton(seriesMenuObj, "Cancel", 14f, buttonsY, 133f, 42f,
+                "<b>" + JeI18n.Get("previewer.exportCancel") + "</b>", HideSeriesMenu);
+            MakeMenuButton(seriesMenuObj, "Confirm", 153f, buttonsY, 133f, 42f,
+                "<b>" + JeI18n.Get("previewer.exportConfirm") + "</b>", OnExportChartClicked);
+
+            seriesMenuObj.SetActive(false);
+            _seriesMenu = seriesMenuObj;
+
+            Main.Handler?.Log($"[JEA][Previewer] EnsureUI done: host={host.name}, hostRenderMode={host.renderMode}, hostSortingLayer={host.sortingLayerName}, hostSortingOrder={host.sortingOrder}");
         }
 
         private static Canvas? ResolveHostCanvas()
@@ -480,14 +580,134 @@ namespace JustEnoughAccuracy
                 if (textCanvas != null)
                     return textCanvas;
             }
-
             if (scrUIController.instance != null && scrUIController.instance.canvas != null)
                 return scrUIController.instance.canvas;
-
             return null;
         }
 
-        private static void OnExportClicked()
+        private static void MakeMenuButton(GameObject menu, string name, float x, float y, float width, float height,
+            string label, Action onClick)
+        {
+            var btnObj = new GameObject(name, typeof(RectTransform));
+            btnObj.transform.SetParent(menu.transform, false);
+            var rect = (RectTransform)btnObj.transform;
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(0f, 1f);
+            rect.pivot = new Vector2(0f, 1f);
+            rect.anchoredPosition = new Vector2(x, y);
+            rect.sizeDelta = new Vector2(width, height);
+            var image = btnObj.AddComponent<Image>();
+            image.sprite = _fillSprite;
+            image.type = Image.Type.Sliced;
+            image.color = new Color(1f, 1f, 1f, 0.10f);
+            var label2 = CreateText(btnObj, "T", 17f);
+            label2.text = label;
+            label2.rectTransform.anchorMin = Vector2.zero;
+            label2.rectTransform.anchorMax = Vector2.one;
+            label2.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            label2.rectTransform.offsetMin = Vector2.zero;
+            label2.rectTransform.offsetMax = Vector2.zero;
+            label2.alignment = TextAlignmentOptions.Center;
+            var button = btnObj.AddComponent<Button>();
+            button.targetGraphic = image;
+            button.onClick.AddListener(() => onClick());
+        }
+
+        private static void ToggleExportMenu()
+        {
+            if (_exportMenu == null) return;
+            _exportMenu.SetActive(!_exportMenu.activeSelf);
+        }
+
+        private static void MakeSeriesRow(GameObject menu, float y, string id, string label, string colorHex)
+        {
+            var rowObj = new GameObject("Row_" + id, typeof(RectTransform));
+            rowObj.transform.SetParent(menu.transform, false);
+            var rect = (RectTransform)rowObj.transform;
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(0f, 1f);
+            rect.pivot = new Vector2(0f, 1f);
+            rect.anchoredPosition = new Vector2(12f, y);
+            rect.sizeDelta = new Vector2(276f, 30f);
+
+            var rowBg = rowObj.AddComponent<Image>();
+            rowBg.sprite = _fillSprite;
+            rowBg.type = Image.Type.Sliced;
+            rowBg.color = new Color(1f, 1f, 1f, 0.04f);
+
+            var boxObj = new GameObject("Box", typeof(RectTransform));
+            boxObj.transform.SetParent(rowObj.transform, false);
+            var boxRect = (RectTransform)boxObj.transform;
+            boxRect.anchorMin = new Vector2(0f, 0.5f);
+            boxRect.anchorMax = new Vector2(0f, 0.5f);
+            boxRect.pivot = new Vector2(0f, 0.5f);
+            boxRect.anchoredPosition = new Vector2(10f, 0f);
+            boxRect.sizeDelta = new Vector2(16f, 16f);
+            var box = boxObj.AddComponent<Image>();
+            box.sprite = _fillSprite;
+            box.type = Image.Type.Sliced;
+            ColorUtility.TryParseHtmlString(colorHex, out var seriesColor);
+
+            var label2 = CreateText(rowObj, "T", 16f);
+            label2.text = label;
+            label2.rectTransform.anchorMin = new Vector2(0f, 0f);
+            label2.rectTransform.anchorMax = new Vector2(1f, 1f);
+            label2.rectTransform.pivot = new Vector2(0f, 0.5f);
+            label2.rectTransform.offsetMin = new Vector2(36f, 0f);
+            label2.rectTransform.offsetMax = new Vector2(-8f, 0f);
+            label2.alignment = TextAlignmentOptions.MidlineLeft;
+
+            void ApplyState()
+            {
+                box.color = _chartSeriesOff.Contains(id)
+                    ? new Color(0.16f, 0.19f, 0.25f, 0.9f)
+                    : seriesColor;
+            }
+
+            ApplyState();
+            var button = rowObj.AddComponent<Button>();
+            button.targetGraphic = rowBg;
+            button.onClick.AddListener(() =>
+            {
+                if (!_chartSeriesOff.Remove(id))
+                    _chartSeriesOff.Add(id);
+                ApplyState();
+            });
+        }
+
+        private static void ShowSeriesMenu()
+        {
+            if (_exportMenu != null) _exportMenu.SetActive(false);
+            if (_seriesMenu != null) _seriesMenu.SetActive(true);
+        }
+
+        private static void HideSeriesMenu()
+        {
+            if (_seriesMenu != null) _seriesMenu.SetActive(false);
+        }
+
+        private static void OnExportYamlClicked()
+        {
+            if (_exportMenu != null) _exportMenu.SetActive(false);
+            Export(ReportExporter.WriteYaml);
+        }
+
+        private static void OnExportChartClicked()
+        {
+            HideSeriesMenu();
+            // Empty "off" set → null → exporter draws every series (future ones default on)
+            ICollection<string>? selected = null;
+            if (_chartSeriesOff.Count > 0)
+            {
+                selected = new List<string>();
+                foreach (var s in ReportExporter.ChartSeries)
+                    if (!_chartSeriesOff.Contains(s.Id))
+                        selected.Add(s.Id);
+            }
+            Export((level, dir) => ReportExporter.WriteChartHtml(level, dir, selected));
+        }
+
+        private static void Export(Func<string, string, string> writer)
         {
             try
             {
@@ -495,16 +715,16 @@ namespace JustEnoughAccuracy
                             ?? ADOBase.customLevel?.levelData?.song
                             ?? "unknown";
                 var dir = Main.Handler != null ? System.IO.Path.Combine(Main.Handler.ModPath, "reports") : System.IO.Path.GetTempPath();
-                var path = ReportExporter.WriteReport(level, dir);
+                var path = writer(level, dir);
                 Main.Handler?.Log($"[JEA] report exported to {path}");
                 if (_title != null)
-                    _title.text = $"<b><color=#FFFFFFFF>JEA</color><color=#7CE0B3>.Previewer</color></b>  <color=#7CE0B3>✓ {System.IO.Path.GetFileName(path)}</color>";
+                    _title.text = $"{TitleMarkup}  <color=#7CE0B3>✓ {System.IO.Path.GetFileName(path)}</color>";
             }
             catch (Exception ex)
             {
                 Main.Handler?.Error($"[JEA] export failed: {ex}");
                 if (_title != null)
-                    _title.text = $"<b><color=#FFFFFFFF>JEA</color><color=#7CE0B3>.Previewer</color></b>  <color=#FF6B6B>✗ export failed</color>";
+                    _title.text = $"{TitleMarkup}  <color=#FF6B6B>✗ export failed</color>";
             }
         }
 
@@ -516,6 +736,8 @@ namespace JustEnoughAccuracy
                 rowObject.transform.SetParent(_contentRect, false);
                 var rect = (RectTransform)rowObject.transform;
                 SetTopLeft(rect);
+                rect.anchoredPosition = new Vector2(0f, -Rows.Count * RowHeight);
+                rect.sizeDelta = new Vector2(PanelWidth - Padding * 2f, RowHeight);
 
                 var text = CreateText(rowObject, "Text", 17f);
                 var textRect = text.rectTransform;

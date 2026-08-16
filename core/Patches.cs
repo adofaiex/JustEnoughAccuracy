@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Reflection.Emit;
 using System.Text.RegularExpressions;
 using HarmonyLib;
 
@@ -18,7 +21,8 @@ namespace JustEnoughAccuracy
             public static void Postfix(ref string __result)
             {
                 if (!Main.Settings.DisplayInDetailedResults || !Main.Settings.Enabled) return;
-                __result = $"{__result.TrimEnd()}\nJEA: {JeaScore.TotalScore} ({JeaScore.CachedAccuracy / 10000m}%) | Combo {JeaScore.MaxCombo} | Tiles {JeaScore.Tiles}";
+                __result = __result.TrimEnd() + "\n" + JeI18n.GetF("results.line",
+                    JeaScore.TotalScore, JeaScore.CachedAccuracy / 10000m, JeaScore.MaxCombo, JeaScore.Tiles);
             }
         }
 
@@ -30,17 +34,45 @@ namespace JustEnoughAccuracy
         [HarmonyPatch(typeof(DetailedResults), "Show")]
         public static class DetailedResults_Show
         {
-            public static void Postfix()
+            public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
             {
+                var codes = new List<CodeInstruction>(instructions);
+                InjectBeforeEveryRet(codes,
+                    OpCodes.Call, typeof(DetailedResults_Show).GetMethod(nameof(OnShow),
+                        BindingFlags.Static | BindingFlags.NonPublic)!);
+                return codes;
+            }
+
+            private static void OnShow()
+            {
+                Main.Handler?.Log("[JEA][Patch] DetailedResults.Show() transpiler fired");
                 if (!Main.Settings.Enabled) return;
-                ResultsScreenButton.Show();
+                // Never let a JEA failure abort the official Show() mid-method —
+                // that would break the win sequence (last-tile unresponsive).
+                try
+                {
+                    ResultsScreenButton.Show();
+                }
+                catch (Exception ex)
+                {
+                    Main.Handler?.Error($"[JEA][Patch] ResultsScreenButton.Show failed: {ex}");
+                }
             }
         }
 
         [HarmonyPatch(typeof(scrHitTextMesh), nameof(scrHitTextMesh.Show))]
         public static class scrHitTextMesh_Show
         {
-            public static void Prefix(scrHitTextMesh __instance)
+            public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            {
+                var codes = new List<CodeInstruction>(instructions);
+                InjectAtStart(codes, new CodeInstruction(OpCodes.Ldarg_0),
+                    OpCodes.Call, typeof(scrHitTextMesh_Show).GetMethod(nameof(OnHitTextShow),
+                        BindingFlags.Static | BindingFlags.NonPublic)!);
+                return codes;
+            }
+
+            private static void OnHitTextShow(scrHitTextMesh __instance)
             {
                 var text = __instance.text.text;
                 if (!Main.Settings.DisplayInJudgementTexts || !Main.Settings.Enabled ||
@@ -63,7 +95,8 @@ namespace JustEnoughAccuracy
                     text = __instance.text.text;
                 }
 
-                long? score = __instance.hitMargin switch
+                // rounded for the in-game hit text; the exact value goes to the recorder
+                double? score = __instance.hitMargin switch
                 {
                     HitMargin.Multipress => null,
                     HitMargin.OverPress => null,
@@ -71,13 +104,13 @@ namespace JustEnoughAccuracy
                     HitMargin.FailOverload => -100,
                     HitMargin.TooEarly => null,
                     HitMargin.TooLate => null,
-                    _ => tileScore
+                    _ => Math.Round(tileScore)
                 };
 
                 if (score is null) return;
 
                 text = RegexInjectedJudgementText.Replace(text, "");
-                text += $"\u200B {score}\u200B";
+                text += $"\u200B {(long)score}\u200B";
                 __instance.text.text = text;
             }
         }
@@ -85,7 +118,16 @@ namespace JustEnoughAccuracy
         [HarmonyPatch(typeof(scrPlanet), nameof(scrPlanet.SwitchChosen))]
         public static class scrPlanet_SwitchChosen
         {
-            public static void Prefix(scrPlanet __instance)
+            public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            {
+                var codes = new List<CodeInstruction>(instructions);
+                InjectAtStart(codes, new CodeInstruction(OpCodes.Ldarg_0),
+                    OpCodes.Call, typeof(scrPlanet_SwitchChosen).GetMethod(nameof(OnSwitchChosen),
+                        BindingFlags.Static | BindingFlags.NonPublic)!);
+                return codes;
+            }
+
+            private static void OnSwitchChosen(scrPlanet __instance)
             {
                 var rad = __instance.cachedAngle - __instance.targetExitAngle;
                 if (!__instance.planetarySystem.isCW) rad = -rad;
@@ -98,7 +140,16 @@ namespace JustEnoughAccuracy
         [HarmonyPatch(typeof(scrMarginTracker), nameof(scrMarginTracker.Reset))]
         public static class scrMarginTracker_Reset
         {
-            public static void Prefix()
+            public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            {
+                var codes = new List<CodeInstruction>(instructions);
+                InjectBeforeEveryRet(codes,
+                    OpCodes.Call, typeof(scrMarginTracker_Reset).GetMethod(nameof(OnReset),
+                        BindingFlags.Static | BindingFlags.NonPublic)!);
+                return codes;
+            }
+
+            private static void OnReset()
             {
                 JeaScore.Reset();
                 JudgementRecorder.Clear();
@@ -108,7 +159,20 @@ namespace JustEnoughAccuracy
         [HarmonyPatch(typeof(scrMarginTracker), nameof(scrMarginTracker.AddHit))]
         public static class scrMarginTracker_AddHit
         {
-            public static void Prefix(HitMargin hit)
+            public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            {
+                var codes = new List<CodeInstruction>(instructions);
+                InjectAtStart(codes, new CodeInstruction(OpCodes.Ldarg_0), new CodeInstruction(OpCodes.Ldarg_1),
+                    OpCodes.Call, typeof(scrMarginTracker_AddHit).GetMethod(nameof(OnAddHit),
+                        BindingFlags.Static | BindingFlags.NonPublic)!);
+                InjectBeforeEveryRet(codes,
+                    new CodeInstruction(OpCodes.Ldarg_0), new CodeInstruction(OpCodes.Ldarg_1),
+                    OpCodes.Call, typeof(scrMarginTracker_AddHit).GetMethod(nameof(OnCaptureHit),
+                        BindingFlags.Static | BindingFlags.NonPublic)!);
+                return codes;
+            }
+
+            private static void OnAddHit(scrMarginTracker __instance, HitMargin hit)
             {
                 if (!Main.Settings.Enabled) return;
                 if (scrController.instance.playerOne.midspinInfiniteMargin)
@@ -144,7 +208,7 @@ namespace JustEnoughAccuracy
                 JeaScore.Cache();
             }
 
-            public static void Postfix(scrMarginTracker __instance, HitMargin hit)
+            private static void OnCaptureHit(scrMarginTracker __instance, HitMargin hit)
             {
                 if (!Main.Settings.Enabled) return;
 
@@ -172,10 +236,85 @@ namespace JustEnoughAccuracy
         [HarmonyPatch(typeof(scrMarginTracker), nameof(scrMarginTracker.RevertToLastCheckpoint))]
         public static class scrMarginTracker_RevertToLastCheckpoint
         {
-            public static void Postfix(scrMarginTracker __instance)
+            public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            {
+                var codes = new List<CodeInstruction>(instructions);
+                InjectBeforeEveryRet(codes, new CodeInstruction(OpCodes.Ldarg_0),
+                    OpCodes.Call, typeof(scrMarginTracker_RevertToLastCheckpoint).GetMethod(nameof(OnRevert),
+                        BindingFlags.Static | BindingFlags.NonPublic)!);
+                return codes;
+            }
+
+            private static void OnRevert(scrMarginTracker __instance)
             {
                 JeaScore.RevertTo(__instance.hitMargins.Count);
                 JudgementRecorder.RevertTo(__instance.hitMargins.Count);
+            }
+        }
+
+        // ---------- transpiler helpers ----------
+
+        /// <summary>Inserts [prefixInsts..., call] at the very start of the method, moving any
+        /// branch labels off the original first instruction.</summary>
+        private static void InjectAtStart(List<CodeInstruction> codes, CodeInstruction prefixInst,
+            OpCode callOp, MethodInfo target)
+        {
+            InjectAtStart(codes, new[] { prefixInst }, callOp, target);
+        }
+
+        private static void InjectAtStart(List<CodeInstruction> codes,
+            CodeInstruction prefixInst1, CodeInstruction prefixInst2, OpCode callOp, MethodInfo target)
+        {
+            InjectAtStart(codes, new[] { prefixInst1, prefixInst2 }, callOp, target);
+        }
+
+        private static void InjectAtStart(List<CodeInstruction> codes, CodeInstruction[] prefixInsts,
+            OpCode callOp, MethodInfo target)
+        {
+            var injected = new List<CodeInstruction>(prefixInsts)
+            {
+                new(callOp, target)
+            };
+            if (codes.Count > 0)
+                codes[0].MoveLabelsTo(injected[0]);
+            codes.InsertRange(0, injected);
+        }
+
+        /// <summary>Inserts [prefixInsts..., call] right before every 'ret' so the call runs on
+        /// all exit paths. Branch labels targeting a ret are moved to the inserted call.</summary>
+        private static void InjectBeforeEveryRet(List<CodeInstruction> codes, CodeInstruction prefixInst,
+            OpCode callOp, MethodInfo target)
+        {
+            InjectBeforeEveryRet(codes, new[] { prefixInst }, callOp, target);
+        }
+
+        private static void InjectBeforeEveryRet(List<CodeInstruction> codes,
+            OpCode callOp, MethodInfo target)
+        {
+            InjectBeforeEveryRet(codes, Array.Empty<CodeInstruction>(), callOp, target);
+        }
+
+        private static void InjectBeforeEveryRet(List<CodeInstruction> codes,
+            CodeInstruction prefixInst1, CodeInstruction prefixInst2, OpCode callOp, MethodInfo target)
+        {
+            InjectBeforeEveryRet(codes, new[] { prefixInst1, prefixInst2 }, callOp, target);
+        }
+
+        private static void InjectBeforeEveryRet(List<CodeInstruction> codes, CodeInstruction[] prefixInsts,
+            OpCode callOp, MethodInfo target)
+        {
+            for (var i = 0; i < codes.Count; i++)
+            {
+                if (codes[i].opcode != OpCodes.Ret) continue;
+
+                var injected = new List<CodeInstruction>(prefixInsts)
+                {
+                    new(callOp, target)
+                };
+                codes[i].MoveLabelsTo(injected[0]);
+                codes[i].MoveBlocksTo(injected[0]);
+                codes.InsertRange(i, injected);
+                i += injected.Count;
             }
         }
     }

@@ -1,0 +1,60 @@
+# JustEnoughAccuracy 简体中文界面文案。
+# 值中可使用 {0} 形式的 string.Format 占位符。
+
+_lang:
+  code: zh
+  systemLanguages:
+    - ChineseSimplified
+    - ChineseTraditional
+
+results:
+  button: "浏览详细信息"
+  # {0}=分数 {1}=准确率% {2}=最大连击 {3}=块数
+  line: "JEA: {0} ({1}%) | 连击 {2} | 块数 {3}"
+
+previewer:
+  searchPlaceholder: "搜索…"
+  export: "导出报告"
+  exportFormat: "导出格式"
+  exportYaml: "YAML 原数据"
+  exportChart: "折线图 (HTML)"
+  exportSeries: "导出序列"
+  exportConfirm: "导出"
+  exportCancel: "取消"
+  noRecords: "没有判定记录"
+
+settings:
+  enabled: "启用 JustEnoughAccuracy"
+  displayJudgement: "在判定文字中显示分数"
+  noDisplayPerfect: "纯 Perfect 时不显示"
+  displayResults: "在结算中显示摘要"
+  hint: "计分模型（分段、罚分、容错）为固定设计，不提供配置。"
+
+margin:
+  TooEarly: "太早"
+  VeryEarly: "过早"
+  EarlyPerfect: "稍早完美"
+  Perfect: "完美"
+  LatePerfect: "稍晚完美"
+  VeryLate: "过晚"
+  TooLate: "太晚"
+  Multipress: "多按"
+  FailMiss: "漏击"
+  FailOverload: "过载"
+  Auto: "自动"
+  OverPress: "空按"
+
+chart:
+  jeaAcc: "JEA"
+  neaAcc: "NEA"
+  jeaScore: "JEA 分"
+  neaScore: "NEA 分"
+  acc: "Acc"
+  xacc: "X-Acc"
+  dev: "偏差°"
+  finalAcc: "最终 JEA"
+  legendHint: "点击图例筛选 · 滚轮缩放 · 拖拽平移 · 双击复位"
+  statScore: "JEA 分数"
+  statAcc: "准确率"
+  statCombo: "最大连击"
+  statTiles: "块数"
