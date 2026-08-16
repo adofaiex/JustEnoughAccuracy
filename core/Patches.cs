@@ -32,13 +32,8 @@ namespace JustEnoughAccuracy
         {
             public static void Postfix()
             {
-                Main.Handler?.Log("[JEA][Patch] DetailedResults.Show() postfix running");
-                if (!Main.Settings.Enabled) 
-                {
-                    Main.Handler?.Log("[JEA][Patch] Mod disabled, skipping ResultsScreenButton.Show()");
-                    return;
-                }
-                Main.Handler?.Log("[JEA][Patch] NOT calling ResultsScreenButton.Show() anymore; use Ctrl+F8 shortcut instead");
+                if (!Main.Settings.Enabled) return;
+                ResultsScreenButton.Show();
             }
         }
 
