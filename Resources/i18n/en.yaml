@@ -9,8 +9,8 @@ _lang:
 
 results:
   button: "Detailed Results"
-  # {0}=score {1}=accuracy% {2}=max combo {3}=tiles
-  line: "JEA: {0} ({1}%) | Combo {2} | Tiles {3}"
+  # {0}=score {1}=accuracy% {2}=max combo {3}=tiles {4}=accuracy colour hex
+  line: "JEA: {0} (<color={4}>{1}</color>%) | Combo {2} | Tiles {3}"
 
 previewer:
   searchPlaceholder: "Search…"
@@ -30,6 +30,7 @@ settings:
   displayJudgement: "Show score in judgement texts"
   noDisplayPerfect: "Hide on Pure Perfect"
   displayResults: "Show summary in detailed results"
+  deathMarkers: "Show death markers"
   hint: "The scoring model (bands, penalties, tolerance) is fixed by design."
 
 margin:

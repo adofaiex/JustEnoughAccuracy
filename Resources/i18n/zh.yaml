@@ -10,8 +10,8 @@ _lang:
 
 results:
   button: "浏览详细信息"
-  # {0}=分数 {1}=准确率% {2}=最大连击 {3}=块数
-  line: "JEA: {0} ({1}%) | 连击 {2} | 块数 {3}"
+  # {0}=分数 {1}=准确率% {2}=最大连击 {3}=块数 {4}=准确率颜色
+  line: "JEA: {0} (<color={4}>{1}</color>%) | 连击 {2} | 块数 {3}"
 
 previewer:
   searchPlaceholder: "搜索…"
@@ -31,6 +31,7 @@ settings:
   displayJudgement: "在判定文字中显示分数"
   noDisplayPerfect: "纯 Perfect 时不显示"
   displayResults: "在结算中显示摘要"
+  deathMarkers: "显示死亡标记"
   hint: "计分模型（分段、罚分、容错）为固定设计，不提供配置。"
 
 margin:

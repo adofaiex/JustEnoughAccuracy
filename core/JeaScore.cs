@@ -233,6 +233,21 @@ namespace JustEnoughAccuracy
                 ? 0
                 : (long)Math.Round(TotalScore * 1_000_000.0 / (Tiles * 100.0));
         }
+
+        /// <summary>
+        /// Accuracy colour for the results screen: green→gold as the accuracy rises.
+        /// Acc is in hundred-thousandths (1_000_000 == 100%); callers pass it as-is.
+        /// </summary>
+        public static string AccuracyColorHex(long acc)
+        {
+            var pct = acc / 10000.0;
+            if (pct >= 100.0) return "#FFDA00";   // gold — pure perfect
+            if (pct >= 99.0) return "#7CE0B3";    // green
+            if (pct >= 96.0) return "#A8D8A0";    // light green
+            if (pct >= 92.0) return "#F3D98B";    // yellow
+            if (pct >= 85.0) return "#E08A7C";    // orange
+            return "#FF6B6B";                     // red
+        }
         /// <summary>
         /// Fired after the score state is refreshed (see <see cref="Cache"/>).
         /// Other mods can subscribe to react to JEA updates without referencing Unity.

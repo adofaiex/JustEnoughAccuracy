@@ -70,6 +70,9 @@ namespace JustEnoughAccuracy
                             IridiumPreset.SwitchOption(sizes, s.DisplayInDetailedResults,
                                 v => s.DisplayInDetailedResults = v, "settings.displayResults"),
                             Separator(),
+                            IridiumPreset.SwitchOption(sizes, s.ShowDeathMarkers,
+                                v => s.ShowDeathMarkers = v, "settings.deathMarkers"),
+                            Separator(),
                             IridiumPreset.IconText(sizes, IconStyle.Information, "settings.hint")
                         )
                     )

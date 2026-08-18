@@ -22,6 +22,8 @@ namespace JustEnoughAccuracy
         private const float SearchHeight = 42f;
         private const float RowHeight = 30f;
         private const float ButtonSize = 44f;
+        private const float ScrollbarWidth = 10f;
+        private const float SeparatorHeight = 1f;
         private const string TitleMarkup = "<b><color=#FFFFFFFF>JustEnoughAcc</color></b>";
 
         private sealed class RowWidget
@@ -30,6 +32,7 @@ namespace JustEnoughAccuracy
             public RectTransform Rect = null!;
             public TextMeshProUGUI Text = null!;
             public JudgementRecord Record = null!;
+            public Button Button = null!;
         }
 
         private static readonly List<RowWidget> Rows = new();
@@ -47,12 +50,17 @@ namespace JustEnoughAccuracy
         private static readonly HashSet<string> _chartSeriesOff = new();
         private static RectTransform? _viewportRect;
         private static RectTransform? _contentRect;
+        private static float _rowWidth;
         private static TextMeshProUGUI? _summary;
         private static Texture2D? _fillTexture;
         private static Texture2D? _ringTexture;
         private static Sprite? _fillSprite;
         private static Sprite? _ringSprite;
         private static TMP_FontAsset? _font;
+
+        private static RectTransform? _scrollbarTrack;
+        private static RectTransform? _scrollbarHandle;
+        private static ScrollbarDrag? _scrollbarDrag;
 
         private static int _visibleCount;
         private static float _maxScroll;
@@ -105,6 +113,7 @@ namespace JustEnoughAccuracy
         public static void Close()
         {
             IsOpen = false;
+            HitMarker.Clear();
             if (_exportMenu != null)
                 _exportMenu.SetActive(false);
             if (_seriesMenu != null)
@@ -164,6 +173,33 @@ namespace JustEnoughAccuracy
                 return;
             _scrollOffset = Mathf.Clamp(_scrollOffset - delta * RowHeight * 2f, 0f, _maxScroll);
             _contentRect!.anchoredPosition = new Vector2(0f, _scrollOffset);
+            UpdateScrollbar();
+        }
+
+        /// <summary>Called by <see cref="ScrollbarDrag"/> when the handle is dragged.
+        /// 0 = top of the list, 1 = bottom.</summary>
+        public static void OnScrollbarDragged(float fracTop)
+        {
+            _scrollOffset = fracTop * _maxScroll;
+            if (_contentRect != null)
+                _contentRect.anchoredPosition = new Vector2(0f, _scrollOffset);
+            UpdateScrollbar();
+        }
+
+        private static void UpdateScrollbar()
+        {
+            if (_scrollbarTrack == null || _scrollbarHandle == null || _contentRect == null)
+                return;
+            var trackH = _scrollbarTrack.rect.height;
+            var contentH = _contentRect.rect.height;
+            var handleH = trackH <= 0f || contentH <= 0f
+                ? trackH
+                : Mathf.Clamp(trackH * trackH / contentH, ScrollbarWidth, trackH);
+            var handleRect = _scrollbarHandle;
+            handleRect.sizeDelta = new Vector2(ScrollbarWidth, handleH);
+            var travel = Mathf.Max(trackH - handleH, 0f);
+            var frac = _maxScroll > 0f ? Mathf.Clamp01(_scrollOffset / _maxScroll) : 0f;
+            handleRect.anchoredPosition = new Vector2(0f, -frac * travel);
         }
 
         // ---------- rendering ----------
@@ -214,7 +250,9 @@ namespace JustEnoughAccuracy
             if (matches.Count == 0)
             {
                 var row = GetRow(0);
+                row.Record = null!;
                 row.Text.text = "<color=#5F6771>" + JeI18n.Get("previewer.noRecords") + "</color>";
+                row.Button.onClick.RemoveAllListeners();
                 if (!row.Root.activeSelf)
                     row.Root.SetActive(true);
                 limit = 1;
@@ -223,22 +261,79 @@ namespace JustEnoughAccuracy
             {
                 for (var i = 0; i < limit; i++)
                 {
+                    var record = matches[i];
                     var row = GetRow(i);
-                    row.Record = matches[i];
+                    row.Record = record;
                     Builder.Length = 0;
-                    BuildRowText(Builder, matches[i]);
+                    BuildRowText(Builder, record);
                     row.Text.text = Builder.ToString();
+                    row.Button.onClick.RemoveAllListeners();
+                    row.Button.onClick.AddListener(() => OnHitClicked(record));
                     if (!row.Root.activeSelf)
                         row.Root.SetActive(true);
                 }
             }
             HideUnusedRows(limit);
 
-            _contentRect!.sizeDelta = new Vector2(PanelWidth - Padding * 2f, limit * RowHeight);
+            _contentRect!.sizeDelta = new Vector2(_rowWidth, limit * RowHeight);
             var viewportH = _viewportRect!.rect.height;
             _maxScroll = Mathf.Max(0f, limit * RowHeight - viewportH);
             _scrollOffset = Mathf.Clamp(_scrollOffset, 0f, _maxScroll);
             _contentRect.anchoredPosition = new Vector2(0f, _scrollOffset);
+            UpdateScrollbar();
+        }
+
+        /// <summary>
+        /// A single hit row was clicked: move the camera to that tile and draw a
+        /// hit-position marker on it (the previous selection's marker is replaced).
+        /// </summary>
+        private static void OnHitClicked(JudgementRecord record)
+        {
+            try
+            {
+                if (record == null) return;
+                var pos = TilePosition(record.Tile);
+                if (pos == null)
+                {
+                    Main.Handler?.Log($"[JEA][Previewer] No floor for tile {record.Tile}");
+                    return;
+                }
+                MoveCameraTo(pos.Value);
+                HitMarker.Show(pos.Value);
+            }
+            catch (Exception ex)
+            {
+                Main.Handler?.Error($"[JEA][Previewer] OnHitClicked failed: {ex.GetType().Name}: {ex.Message}");
+            }
+        }
+
+        /// <summary>World position of a 1-based tile number, or null when the floor
+        /// doesn't exist (e.g. chart not loaded, or past the last floor).</summary>
+        private static Vector3? TilePosition(int tile)
+        {
+            var floors = scrLevelMaker.instance?.listFloors;
+            if (floors == null || tile < 1 || tile > floors.Count)
+                return null;
+            var floor = floors[tile - 1];
+            if (floor == null)
+                return null;
+            return floor.transform.position;
+        }
+
+        /// <summary>Point the relevant camera at a world position. In the editor the
+        /// editor camera is moved; otherwise the gameplay camera, clamped to its Z.</summary>
+        private static void MoveCameraTo(Vector3 pos)
+        {
+            Camera? cam = null;
+            if (ADOBase.isLevelEditor && scnEditor.instance != null)
+                cam = scnEditor.instance.camera;
+            if (cam == null && scrCamera.instance != null)
+                cam = scrCamera.instance.camobj;
+            if (cam == null)
+                cam = Camera.main;
+            if (cam == null)
+                return;
+            cam.transform.position = new Vector3(pos.x, pos.y, cam.transform.position.z);
         }
 
         private static bool MatchesFilter(JudgementRecord record, string filter)
@@ -492,12 +587,39 @@ namespace JustEnoughAccuracy
             var viewportY = Padding * 0.7f + TitleHeight + 6f + SearchHeight + 8f + 24f + 10f;
             _viewportRect.anchoredPosition = new Vector2(Padding, -viewportY);
             var bottomArea = ButtonSize + Padding * 1.2f;
-            _viewportRect.sizeDelta = new Vector2(PanelWidth - Padding * 2f, PanelHeight - viewportY - bottomArea);
+            var viewportH = PanelHeight - viewportY - bottomArea;
+            _viewportRect.sizeDelta = new Vector2(PanelWidth - Padding * 2f - ScrollbarWidth - 8f, viewportH);
+            _rowWidth = _viewportRect.sizeDelta.x;
 
             var contentObj = new GameObject("Content", typeof(RectTransform));
             contentObj.transform.SetParent(viewportObj.transform, false);
             _contentRect = (RectTransform)contentObj.transform;
             SetTopLeft(_contentRect);
+
+            // vertical scrollbar (right of the viewport)
+            var trackObj = new GameObject("Scrollbar", typeof(RectTransform));
+            trackObj.transform.SetParent(panelObject.transform, false);
+            var trackRect = (RectTransform)trackObj.transform;
+            SetTopLeft(trackRect);
+            trackRect.anchoredPosition = new Vector2(Padding + _viewportRect.sizeDelta.x + 4f, -viewportY);
+            trackRect.sizeDelta = new Vector2(ScrollbarWidth, viewportH);
+            var trackImage = trackObj.AddComponent<Image>();
+            trackImage.sprite = _fillSprite;
+            trackImage.type = Image.Type.Sliced;
+            trackImage.color = new Color(1f, 1f, 1f, 0.10f);
+            _scrollbarTrack = trackRect;
+
+            var handleObj = new GameObject("Handle", typeof(RectTransform));
+            handleObj.transform.SetParent(trackObj.transform, false);
+            _scrollbarHandle = (RectTransform)handleObj.transform;
+            SetTopLeft(_scrollbarHandle);
+            var handleImage = handleObj.AddComponent<Image>();
+            handleImage.sprite = _fillSprite;
+            handleImage.type = Image.Type.Sliced;
+            handleImage.color = new Color(1f, 1f, 1f, 0.55f);
+            _scrollbarDrag = handleObj.AddComponent<ScrollbarDrag>();
+            _scrollbarDrag.Setup(trackRect);
+            _scrollbarHandle.sizeDelta = new Vector2(ScrollbarWidth, viewportH);
 
             // export button (bottom-right)
             var exportObj = new GameObject("Export", typeof(RectTransform));
@@ -766,7 +888,29 @@ namespace JustEnoughAccuracy
                 var rect = (RectTransform)rowObject.transform;
                 SetTopLeft(rect);
                 rect.anchoredPosition = new Vector2(0f, -Rows.Count * RowHeight);
-                rect.sizeDelta = new Vector2(PanelWidth - Padding * 2f, RowHeight);
+                rect.sizeDelta = new Vector2(_rowWidth, RowHeight);
+
+                var rowImage = rowObject.AddComponent<Image>();
+                rowImage.sprite = _fillSprite;
+                rowImage.type = Image.Type.Sliced;
+                rowImage.color = new Color(1f, 1f, 1f, 0.03f);
+                var button = rowObject.AddComponent<Button>();
+                button.targetGraphic = rowImage;
+
+                // separator: a thin line under every hit so rows read as one block each.
+                var sep = new GameObject("Separator", typeof(RectTransform));
+                sep.transform.SetParent(rowObject.transform, false);
+                var sepRect = (RectTransform)sep.transform;
+                sepRect.anchorMin = new Vector2(0f, 0f);
+                sepRect.anchorMax = new Vector2(1f, 0f);
+                sepRect.pivot = new Vector2(0.5f, 0f);
+                sepRect.offsetMin = Vector2.zero;
+                sepRect.offsetMax = new Vector2(0f, SeparatorHeight);
+                var sepImage = sep.AddComponent<Image>();
+                sepImage.sprite = _fillSprite;
+                sepImage.type = Image.Type.Sliced;
+                sepImage.color = new Color(1f, 1f, 1f, 0.10f);
+                sepImage.raycastTarget = false;
 
                 var text = CreateText(rowObject, "Text", 17f);
                 var textRect = text.rectTransform;
@@ -778,7 +922,7 @@ namespace JustEnoughAccuracy
                 text.alignment = TextAlignmentOptions.MidlineLeft;
 
                 rowObject.SetActive(false);
-                Rows.Add(new RowWidget { Root = rowObject, Rect = rect, Text = text });
+                Rows.Add(new RowWidget { Root = rowObject, Rect = rect, Text = text, Button = button });
             }
             return Rows[index];
         }

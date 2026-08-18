@@ -14,6 +14,9 @@ namespace JustEnoughAccuracy
 
         public bool DisplayInDetailedResults { get; set; } = true;
 
+        /// <summary>Place a dashed hollow-circle marker at each ball's position when the player dies.</summary>
+        public bool ShowDeathMarkers { get; set; } = true;
+
         /// <summary>Language code override (e.g. "en", "zh"); null = follow game language.</summary>
         public string? Language { get; set; }
     }

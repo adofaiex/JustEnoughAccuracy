@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Text.RegularExpressions;
 using HarmonyLib;
+using UnityEngine;
 
 // ReSharper disable UnusedMember.Global
 // ReSharper disable UnusedType.Global
@@ -21,8 +22,10 @@ namespace JustEnoughAccuracy
             public static void Postfix(ref string __result)
             {
                 if (!Main.Settings.DisplayInDetailedResults || !Main.Settings.Enabled) return;
+                var acc = JeaScore.CachedAccuracy;
                 __result = __result.TrimEnd() + "\n" + JeI18n.GetF("results.line",
-                    Math.Floor(JeaScore.TotalScore), JeaScore.CachedAccuracy / 10000m, JeaScore.MaxCombo, JeaScore.Tiles);
+                    Math.Floor(JeaScore.TotalScore), acc / 10000m, JeaScore.MaxCombo, JeaScore.Tiles,
+                    JeaScore.AccuracyColorHex(acc));
             }
         }
 
@@ -267,10 +270,83 @@ namespace JustEnoughAccuracy
                 {
                     JePreviewer.Close();
                     ResultsScreenButton.Hide();
+                    // Keep marker positions, just hide them while editing.
+                    DeathMarker.Hide();
                 }
                 catch (Exception ex)
                 {
                     Main.Handler?.Error($"[JEA][Patch] SwitchToEditMode cleanup failed: {ex}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Re-entering the editor's play mode re-shows death markers for the same
+        /// chart (they stay hidden while editing).
+        /// </summary>
+        [HarmonyPatch(typeof(scnEditor), nameof(scnEditor.Play))]
+        public static class scnEditor_Play
+        {
+            public static void Postfix()
+            {
+                if (!Main.Settings.Enabled) return;
+                try
+                {
+                    DeathMarker.Show();
+                }
+                catch (Exception ex)
+                {
+                    Main.Handler?.Error($"[JEA][Patch] scnEditor.Play DeathMarker.Show failed: {ex}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Loading a different chart drops any death markers recorded for the
+        /// previous chart.
+        /// </summary>
+        [HarmonyPatch(typeof(scnEditor), nameof(scnEditor.OpenLevel))]
+        public static class scnEditor_OpenLevel
+        {
+            public static void Postfix()
+            {
+                if (!Main.Settings.Enabled) return;
+                try
+                {
+                    DeathMarker.Clear();
+                }
+                catch (Exception ex)
+                {
+                    Main.Handler?.Error($"[JEA][Patch] scnEditor.OpenLevel DeathMarker.Clear failed: {ex}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// The player died: record one dashed circle per ball at the moment of
+        /// death, before the level resets. Tied to FailAction which only runs when
+        /// the run actually ends (no-fail/lives paths return earlier).
+        /// </summary>
+        [HarmonyPatch(typeof(scrController), nameof(scrController.FailAction))]
+        public static class scrController_FailAction
+        {
+            public static void Postfix(scrController __instance)
+            {
+                if (!Main.Settings.Enabled || !Main.Settings.ShowDeathMarkers) return;
+                try
+                {
+                    var pts = new List<Vector3>();
+                    var system = __instance?.planetarySystem;
+                    if (system != null)
+                    {
+                        foreach (var p in system.planetList)
+                            if (p != null) pts.Add(p.transform.position);
+                    }
+                    DeathMarker.Mark(pts, __instance != null ? __instance.currentSeqID : 0);
+                }
+                catch (Exception ex)
+                {
+                    Main.Handler?.Error($"[JEA][Patch] FailAction death marker failed: {ex}");
                 }
             }
         }

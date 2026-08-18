@@ -29,6 +29,7 @@ namespace JustEnoughAccuracy
             {
                 JePreviewer.Close();
                 ResultsScreenButton.Hide();
+                DeathMarker.Clear();
                 return;
             }
 
@@ -60,9 +61,14 @@ namespace JustEnoughAccuracy
             else if (!_resultsWereVisible)
             {
                 Main.Handler?.Log($"[JEA][Main] resultsVisible became true (state={ctl?.currentState})");
+                // The player won (main game): no more death markers needed on this chart.
+                // In the editor, markers persist until a new chart is opened instead.
+                if (!ADOBase.isLevelEditor)
+                    DeathMarker.Clear();
             }
 
             _resultsWereVisible = resultsVisible;
+            DeathMarker.OnUpdate();
             JePreviewer.OnUpdate();
         }
 
