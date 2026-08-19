@@ -6,17 +6,21 @@ namespace JustEnoughAccuracy
     /// <summary>
     /// JEA scoring engine.
     ///
-    /// 赋分制 (point-allocation) — a millisecond-based mechanism, inspired by
-    /// NotEnoughAccuracy's philosophy (every millisecond is scored, no hard
-    /// cut-offs) but NOT a copy of it:
+    /// 角度赋分制 (angular point-allocation) — JEA's own identity: the score is
+    /// a function of the ANGULAR deviation (∠), not of time (ms) like NEA. The
+    /// curve is anchored on the official margin boundaries:
     ///
-    ///  - A FULL-SCORE window: 4° of angle at low BPM (the "100 分区间是 4 度"),
-    ///    widening proportionally with the effective rate (BPM × speed × pitch)
-    ///    like the official constant-ms margins, capped so very fast charts
-    ///    don't get absurdly wide windows.
-    ///  - Outside that window the score falls off LINEarly: 1 point per
-    ///    millisecond of extra deviation, down to 0. Every valid judgement
-    ///    scores — no banding, no snap cut-offs.
+    ///  - FULL-SCORE window: 4° of angle (widening with the effective rate
+    ///    BPM × speed × pitch), inside which the tile scores 100.
+    ///  - From the window edge out to the OFFICIAL Perfect boundary
+    ///    (max(45°, TimeToAngle(0.03)) — includes the 45° floor), the score
+    ///    maps 99 → 90.
+    ///  - From the Perfect boundary out to the OFFICIAL Counted boundary
+    ///    (max(HITMARGIN_COUNTED, TimeToAngle(0.065))), the score maps 80 → 0.
+    ///  - Beyond Counted the hit is a miss anyway (Fail paths handle it).
+    ///
+    /// Every valid judgement scores — no banding cut-offs and no per-millisecond
+    /// penalty, which is what separates JEA from NEA.
     ///
     /// 连锁 (combo): consecutive tiles scoring at or above <see cref="ComboThreshold"/>
     ///  grow a combo that is tracked for display only — it does NOT multiply tile
@@ -30,11 +34,13 @@ namespace JustEnoughAccuracy
     {
         // ── scoring model ─────────────────────────────────────────────────
         //
-        // Full-score window (degrees) = max(4°, rate × 0.04) capped at 20°.
+        // Full-score window (degrees): max(4°, rate × 0.04) capped at 20°.
         //   4°  @ 100 BPM ≡ 6.67 ms of time tolerance.
         //   8°  @ 200 BPM (same 6.67 ms — window widens with BPM).
         //   20° cap @ 500+ BPM so the window never goes absurd.
-        // Outside the window: 1 point lost per additional millisecond.
+        // The official boundary anchors (Perfect / Counted) are computed per hit
+        // via scrMisc.GetAdjustedAngleBoundaryInDeg at the effective rate, so
+        // they follow the real margins (including the 45° / 60° floors).
         private const double ReferenceBpmValue = 100;
         private const double FullWindowFloorDeg = 4.0;
         private const double FullWindowDegPerBpm = 0.04;
@@ -68,6 +74,18 @@ namespace JustEnoughAccuracy
 
         /// <summary>Track's set BPM for the current hit, set by the SwitchChosen patch.</summary>
         public static double CurrentBpm { get; set; } = 100;
+
+        /// <summary>
+        /// Official Perfect boundary in degrees at the current effective rate
+        /// (includes the 45° floor). Set by the SwitchChosen patch.
+        /// </summary>
+        public static double PerfectBoundaryDeg { get; set; } = 45.0;
+
+        /// <summary>
+        /// Official Counted boundary in degrees at the current effective rate
+        /// (includes the HITMARGIN_COUNTED floor). Set by the SwitchChosen patch.
+        /// </summary>
+        public static double CountedBoundaryDeg { get; set; } = 60.0;
 
         /// <summary>
         /// Signed deviation of the current hit in degrees (positive = late,
@@ -116,29 +134,49 @@ namespace JustEnoughAccuracy
         }
 
         /// <summary>
+        /// Score for a raw angular deviation (degrees), anchored on the official
+        /// margin boundaries:
+        ///   ≤ full-score window            → 100
+        ///   window → official Perfect      → 99…90  (linear)
+        ///   official Perfect → Counted     → 80…0   (linear)
+        ///   beyond Counted                 → 0 (a miss; Fail paths own those)
+        /// The score is a pure function of ANGLE, not milliseconds — that is
+        /// what separates JEA from NEA. No banding snap, no per-ms penalty.
+        /// </summary>
+        public static double BaseScore(double absDeviationDeg)
+        {
+            var window = FullWindowDeg();
+            if (absDeviationDeg <= window) return 100.0;
+
+            var perfect = PerfectBoundaryDeg > window ? PerfectBoundaryDeg : window;
+            if (absDeviationDeg <= perfect)
+            {
+                // 99 at the window edge → 90 at the official Perfect boundary.
+                var t = (absDeviationDeg - window) / (perfect - window);
+                return 99.0 - 9.0 * t;
+            }
+
+            var counted = CountedBoundaryDeg > perfect ? CountedBoundaryDeg : perfect;
+            if (absDeviationDeg <= counted)
+            {
+                // 80 at Perfect → 0 at the official Counted boundary.
+                var t = (absDeviationDeg - perfect) / (counted - perfect);
+                var score = 80.0 - 80.0 * t;
+                return score < 0.0 ? 0.0 : score;
+            }
+
+            return 0.0;
+        }
+
+        /// <summary>
         /// Convert a raw angular deviation to a time error in milliseconds at
         /// the current effective rate (360° per crotchet = 60/bpm s).
+        /// Used for display/export only — scoring itself is angular.
         /// </summary>
         private static double DegToMs(double absDeviationDeg)
         {
             var bpm = CurrentBpm <= 0 ? ReferenceBpmValue : CurrentBpm;
             return absDeviationDeg * 1000.0 / (bpm * 6.0);
-        }
-
-        /// <summary>
-        /// Score for a raw angular deviation (degrees): 100 inside the
-        /// full-score window, then 1 point lost per extra millisecond, down to
-        /// 0. Every valid judgement scores — no banding, no snap cut-offs.
-        /// </summary>
-        public static double BaseScore(double absDeviationDeg)
-        {
-            var windowMs = DegToMs(FullWindowDeg());
-            var devMs = DegToMs(absDeviationDeg);
-            if (devMs <= windowMs) return 100.0;
-            // 1 point lost per whole extra millisecond (rounded down — only
-            // whole ms count, keeping the strict-judgement feel).
-            var score = 100.0 - Math.Floor(devMs - windowMs);
-            return score < 0.0 ? 0.0 : score;
         }
 
         /// <summary>

@@ -146,6 +146,25 @@ namespace JustEnoughAccuracy
                     (float)__instance.planetarySystem.speed * pitch;
                 JeaScore.CurrentDeviationSignedDeg = rad * 180.0 / Math.PI;
                 JeaScore.CurrentDeviationDeg = Math.Abs(rad) * 180.0 / Math.PI;
+
+                // Anchor the score curve on the OFFICIAL margin boundaries at the
+                // current effective rate (respects difficulty, speed trial and
+                // the 45° Perfect / HITMARGIN_COUNTED Counted floors).
+                try
+                {
+                    var bpmTimesSpeed = (double)__instance.conductor.bpm *
+                        (double)__instance.planetarySystem.speed;
+                    JeaScore.PerfectBoundaryDeg = scrMisc.GetAdjustedAngleBoundaryInDeg(
+                        HitMarginGeneral.Perfect, bpmTimesSpeed, pitch);
+                    JeaScore.CountedBoundaryDeg = scrMisc.GetAdjustedAngleBoundaryInDeg(
+                        HitMarginGeneral.Counted, bpmTimesSpeed, pitch);
+                }
+                catch (Exception ex)
+                {
+                    JeaScore.PerfectBoundaryDeg = 45.0;
+                    JeaScore.CountedBoundaryDeg = GCS.HITMARGIN_COUNTED;
+                    Main.Handler?.Error($"[JEA][Patch] official boundary capture failed: {ex}");
+                }
                 JeaScore.TileScore = JeaScore.BaseScore(JeaScore.CurrentDeviationDeg);
 
                 // Capture every ball's position at this exact instant. At
