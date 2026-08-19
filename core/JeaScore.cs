@@ -6,51 +6,40 @@ namespace JustEnoughAccuracy
     /// <summary>
     /// JEA scoring engine.
     ///
-    /// 赋分制 (point-allocation): the tile's raw angle deviation is normalized to
-    /// a reference BPM and graded on a FIXED band table — the score interpolates
-    /// linearly inside each band, so every point value (95, 97, 98.4 …) is
-    /// reachable instead of only the band anchors.
+    /// 赋分制 (point-allocation) — a millisecond-based mechanism, inspired by
+    /// NotEnoughAccuracy's philosophy (every millisecond is scored, no hard
+    /// cut-offs) but NOT a copy of it:
     ///
-    /// The band table and all penalties are constants by design: JEA is meant to
-    /// be one fixed judgement, not a configurable one.
+    ///  - A FULL-SCORE window: 4° of angle at low BPM (the "100 分区间是 4 度"),
+    ///    widening proportionally with the effective rate (BPM × speed × pitch)
+    ///    like the official constant-ms margins, capped so very fast charts
+    ///    don't get absurdly wide windows.
+    ///  - Outside that window the score falls off LINEarly: 1 point per
+    ///    millisecond of extra deviation, down to 0. Every valid judgement
+    ///    scores — no banding, no snap cut-offs.
     ///
     /// 连锁 (combo): consecutive tiles scoring at or above <see cref="ComboThreshold"/>
-    /// grow a combo that is tracked for display only — it does NOT multiply tile
-    /// scores, so accuracy is capped at 100%.
+    ///  grow a combo that is tracked for display only — it does NOT multiply tile
+    ///  scores, so accuracy is capped at 100%.
     ///
     /// 空敲容错 (empty-press tolerance): mirrors the official <c>consecMultipressCounter &gt; 8</c>
-    /// rule — the first N consecutive empty presses are forgiven, after which each one
-    /// costs a penalty and resets the combo.
+    ///  rule — the first N consecutive empty presses are forgiven, after which each one
+    ///  costs a penalty and resets the combo.
     /// </summary>
     public static class JeaScore
     {
-        // ── fixed scoring model ────────────────────────────────────────────
+        // ── scoring model ─────────────────────────────────────────────────
         //
-        // Bands are in normalized degrees (see NormalizeDeviation). Score is
-        // linearly interpolated between neighbouring anchors:
-        //   1.7°→100 (full-score window), 2.0°→96, … 8.0°→15, >8°→0.
-        // Anchor mapping: full score = 1.7° normalized (≈ ±43.5° at 2560 BPM,
-        // an 87°-wide full-score window), zero line = 8° (≈ 205° at 2560 BPM,
-        // past the official TooEarly boundary — a hit always scores > 0).
-        private static readonly (double Deg, int Score)[] Bands =
-        {
-            (1.7, 100),
-            (2.0, 96),
-            (2.4, 92),
-            (2.8, 88),
-            (3.2, 84),
-            (3.6, 80),
-            (4.0, 75),
-            (4.5, 70),
-            (5.0, 62),
-            (5.5, 54),
-            (6.0, 46),
-            (6.6, 36),
-            (7.2, 26),
-            (8.0, 15),
-        };
-
+        // Full-score window (degrees) = max(4°, rate × 0.04) capped at 20°.
+        //   4°  @ 100 BPM ≡ 6.67 ms of time tolerance.
+        //   8°  @ 200 BPM (same 6.67 ms — window widens with BPM).
+        //   20° cap @ 500+ BPM so the window never goes absurd.
+        // Outside the window: 1 point lost per additional millisecond.
         private const double ReferenceBpmValue = 100;
+        private const double FullWindowFloorDeg = 4.0;
+        private const double FullWindowDegPerBpm = 0.04;
+        private const double FullWindowCapDeg = 20.0;
+
         private const int ComboThreshold = 50;
         private const int EmptyPressTolerance = 8;
         private const int EmptyPressPenaltyScore = 100;
@@ -80,6 +69,13 @@ namespace JustEnoughAccuracy
         /// <summary>Track's set BPM for the current hit, set by the SwitchChosen patch.</summary>
         public static double CurrentBpm { get; set; } = 100;
 
+        /// <summary>
+        /// Signed deviation of the current hit in degrees (positive = late,
+        /// negative = early), set by the SwitchChosen patch. The absolute value
+        /// is what scoring uses; the sign is preserved for display.
+        /// </summary>
+        public static double CurrentDeviationSignedDeg { get; set; }
+
         /// <summary>Interpolated band score of the current hit, set by the SwitchChosen patch.</summary>
         public static double TileScore { get; set; }
 
@@ -108,36 +104,53 @@ namespace JustEnoughAccuracy
         }
 
         /// <summary>
-        /// Interpolated score for an absolute (normalized) deviation in degrees:
-        /// 100 inside the full-score window, then linear between band anchors,
-        /// 0 beyond the last one.
+        /// Full-score window in degrees at the current effective rate:
+        /// 4° floor, widening with BPM, capped at <see cref="FullWindowCapDeg"/>.
         /// </summary>
-        public static double BaseScore(double absDeviationDeg)
+        private static double FullWindowDeg()
         {
-            if (absDeviationDeg <= Bands[0].Deg)
-                return Bands[0].Score;
-            for (var i = 1; i < Bands.Length; i++)
-            {
-                if (absDeviationDeg <= Bands[i].Deg)
-                {
-                    var (d0, s0) = Bands[i - 1];
-                    var (d1, s1) = Bands[i];
-                    var t = (absDeviationDeg - d0) / (d1 - d0);
-                    return s0 + (s1 - s0) * t;
-                }
-            }
-            return 0;
+            var bpm = CurrentBpm <= 0 ? ReferenceBpmValue : CurrentBpm;
+            return Math.Min(
+                Math.Max(FullWindowFloorDeg, FullWindowDegPerBpm * bpm),
+                FullWindowCapDeg);
         }
 
         /// <summary>
-        /// Normalize a raw degree deviation to the reference BPM, so a constant timing
-        /// error in milliseconds grades the same on any chart (the angle equivalent of a
-        /// time window grows linearly with BPM, as in the official engine).
+        /// Convert a raw angular deviation to a time error in milliseconds at
+        /// the current effective rate (360° per crotchet = 60/bpm s).
         /// </summary>
-        public static double NormalizeDeviation(double absDeviationDeg)
+        private static double DegToMs(double absDeviationDeg)
         {
             var bpm = CurrentBpm <= 0 ? ReferenceBpmValue : CurrentBpm;
-            return absDeviationDeg * ReferenceBpmValue / bpm;
+            return absDeviationDeg * 1000.0 / (bpm * 6.0);
+        }
+
+        /// <summary>
+        /// Score for a raw angular deviation (degrees): 100 inside the
+        /// full-score window, then 1 point lost per extra millisecond, down to
+        /// 0. Every valid judgement scores — no banding, no snap cut-offs.
+        /// </summary>
+        public static double BaseScore(double absDeviationDeg)
+        {
+            var windowMs = DegToMs(FullWindowDeg());
+            var devMs = DegToMs(absDeviationDeg);
+            if (devMs <= windowMs) return 100.0;
+            // 1 point lost per whole extra millisecond (rounded down — only
+            // whole ms count, keeping the strict-judgement feel).
+            var score = 100.0 - Math.Floor(devMs - windowMs);
+            return score < 0.0 ? 0.0 : score;
+        }
+
+        /// <summary>
+        /// Signed angular deviation converted to an equivalent signed time error
+        /// in milliseconds at the current effective rate (positive = late,
+        /// negative = early). Used for display; scoring itself uses
+        /// <see cref="BaseScore"/> on the absolute deviation.
+        /// </summary>
+        public static double NormalizeDeviation(double signedDeviationDeg)
+        {
+            var sign = signedDeviationDeg < 0.0 ? -1.0 : 1.0;
+            return DegToMs(Math.Abs(signedDeviationDeg)) * sign;
         }
 
         /// <summary>What the last committed operation was, for the judgement recorder.</summary>
@@ -159,7 +172,7 @@ namespace JustEnoughAccuracy
         /// <summary>Commit a scored tile (deviation already captured).</summary>
         public static void AddTile()
         {
-            var baseScore = BaseScore(NormalizeDeviation(Math.Abs(CurrentDeviationDeg)));
+            var baseScore = BaseScore(Math.Abs(CurrentDeviationDeg));
             Combo = baseScore >= ComboThreshold ? Combo + 1 : 0;
             MaxCombo = Math.Max(MaxCombo, Combo);
             ConsecutiveEmptyPresses = 0;

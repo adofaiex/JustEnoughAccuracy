@@ -23,6 +23,8 @@ previewer:
   exportConfirm: "导出"
   exportCancel: "取消"
   noRecords: "没有判定记录"
+  prev: "上一个 (Shift+F3)"
+  next: "下一个 (F3)"
 
 settings:
   enabled: "启用 JustEnoughAccuracy"
@@ -55,7 +57,7 @@ chart:
   neaScore: "NEA 分"
   acc: "Acc"
   xacc: "X-Acc"
-  dev: "偏差°"
+  dev: "偏差ms"
   finalAcc: "最终 JEA"
   legendHint: "点击图例筛选 · 滚轮缩放 · 拖拽平移 · 双击复位"
   statScore: "JEA 分数"

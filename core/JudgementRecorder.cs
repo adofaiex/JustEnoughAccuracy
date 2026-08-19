@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace JustEnoughAccuracy
 {
@@ -13,6 +14,14 @@ namespace JustEnoughAccuracy
     {
         private static readonly List<JudgementRecord> Records = new();
         private static readonly object Sync = new();
+
+        /// <summary>
+        /// Ball positions captured at the exact SwitchChosen moment (set by the
+        /// SwitchChosen patch). Consumed by the next Capture — this is more
+        /// precise than reading transform.position inside the margin-tracker
+        /// hook, where the planets have already started rotating past the hit.
+        /// </summary>
+        public static List<Vector3>? PendingBallPositions;
 
         public static IReadOnlyList<JudgementRecord> Snapshot()
         {
@@ -66,7 +75,8 @@ namespace JustEnoughAccuracy
             HitMargin margin,
             float acc,
             float xAcc,
-            bool isEmptyPress)
+            bool isEmptyPress,
+            List<Vector3>? ballPositions)
         {
             var record = new JudgementRecord
             {
@@ -83,7 +93,8 @@ namespace JustEnoughAccuracy
                 Acc = acc,
                 XAcc = xAcc,
                 OfficialScore = OfficialScoreFor(margin),
-                IsEmptyPress = isEmptyPress
+                IsEmptyPress = isEmptyPress,
+                BallPositions = ballPositions
             };
 
             lock (Sync)

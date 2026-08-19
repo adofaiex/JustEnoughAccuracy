@@ -33,6 +33,7 @@ namespace JustEnoughAccuracy
             public TextMeshProUGUI Text = null!;
             public JudgementRecord Record = null!;
             public Button Button = null!;
+            public Image Image = null!;
         }
 
         private static readonly List<RowWidget> Rows = new();
@@ -70,6 +71,11 @@ namespace JustEnoughAccuracy
         private static TextMeshProUGUI? _searchPlaceholder;
         private static int _languageVersion = -1;
 
+        /// <summary>Records shown in the current (filtered) list; drive F3 navigation.</summary>
+        private static readonly List<JudgementRecord> _visibleMatches = new();
+        /// <summary>Tile of the currently selected judgement, or -1 for none.</summary>
+        private static int _selectedTile = -1;
+
         /// <summary>Whether the previewer overlay is currently open.</summary>
         public static bool IsOpen { get; private set; }
 
@@ -88,6 +94,7 @@ namespace JustEnoughAccuracy
             }
             IsOpen = true;
             _scrollOffset = 0f;
+            _selectedTile = -1;
             // Reset the title and the search filter: the previous run may have
             // left a "✓ exported" state or a stale search term behind.
             if (_title != null)
@@ -144,14 +151,8 @@ namespace JustEnoughAccuracy
             if (!IsOpen || _canvas == null)
                 return;
 
-            // Esc closes the previewer together with the results screen.
-            if (Input.GetKeyDown(KeyCode.Escape))
-            {
-                Close();
-                return;
-            }
-
             HandleScroll();
+            HandleNavigationHotkeys();
 
             // Auto-refresh whenever the search text or data changed.
             var filter = _search != null ? _search.text : "";
@@ -160,6 +161,34 @@ namespace JustEnoughAccuracy
                 try { Refresh(); }
                 catch (Exception ex) { Main.Handler?.Error($"[JEA][Previewer] Refresh failed: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}"); }
             }
+        }
+
+        /// <summary>
+        /// F3 = next judgement (down the list), Shift+F3 = previous. Only acts
+        /// while the previewer is open; does not require the list to have focus.
+        /// </summary>
+        private static void HandleNavigationHotkeys()
+        {
+            if (!Input.GetKeyDown(KeyCode.F3))
+                return;
+            var back = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+            Navigate(back ? -1 : +1);
+        }
+
+        /// <summary>Scroll so the row at the given match index is inside the viewport.</summary>
+        private static void EnsureRowVisible(int matchIndex)
+        {
+            if (_viewportRect == null || _contentRect == null)
+                return;
+            var viewportH = _viewportRect.rect.height;
+            var rowTop = matchIndex * RowHeight;
+            var rowBottom = rowTop + RowHeight;
+            if (rowTop < _scrollOffset)
+                _scrollOffset = Mathf.Max(0f, rowTop);
+            else if (rowBottom > _scrollOffset + viewportH)
+                _scrollOffset = Mathf.Min(_maxScroll, rowBottom - viewportH);
+            _contentRect.anchoredPosition = new Vector2(0f, _scrollOffset);
+            UpdateScrollbar();
         }
 
         private static void HandleScroll()
@@ -227,22 +256,33 @@ namespace JustEnoughAccuracy
             }
 
             _visibleCount = matches.Count;
+            _visibleMatches.Clear();
+            _visibleMatches.AddRange(matches);
             Main.Handler?.Log($"[JEA][Previewer] matches={matches.Count}, records={records.Count}");
 
-            // summary line — compact: score | acc% | combo | tiles
-            Builder.Append("<color=#7CE0B3>")
-                .Append(Math.Floor(JeaScore.TotalScore).ToString(CultureInfo.InvariantCulture))
-                .Append("</color>")
-                .Append("  <color=#5F6771>|</color>  ")
-                .Append((JeaScore.CachedAccuracy / 10000m).ToString("0.####", CultureInfo.InvariantCulture))
-                .Append("<color=#7CE0B3>%</color>")
-                .Append("  <color=#5F6771>|</color>  x")
-                .Append(JeaScore.MaxCombo.ToString(CultureInfo.InvariantCulture))
-                .Append("  <color=#5F6771>|</color>  ")
-                .Append(matches.Count.ToString(CultureInfo.InvariantCulture))
-                .Append("<color=#5F6771>/</color>")
-                .Append(records.Count.ToString(CultureInfo.InvariantCulture))
-                .Append(" <color=#5F6771>tiles</color>");
+            // summary line — compact: score | acc% | combo | tiles.
+            // When the filter narrows to a single tile, show THAT tile's
+            // content instead, so searching a tile is useful.
+            if (matches.Count == 1 && !string.IsNullOrWhiteSpace(filter))
+            {
+                Builder.Append(SummaryForTile(matches[0]));
+            }
+            else
+            {
+                Builder.Append("<color=#7CE0B3>")
+                    .Append(Math.Floor(JeaScore.TotalScore).ToString(CultureInfo.InvariantCulture))
+                    .Append("</color>")
+                    .Append("  <color=#5F6771>|</color>  ")
+                    .Append((JeaScore.CachedAccuracy / 10000m).ToString("0.####", CultureInfo.InvariantCulture))
+                    .Append("<color=#7CE0B3>%</color>")
+                    .Append("  <color=#5F6771>|</color>  x")
+                    .Append(JeaScore.MaxCombo.ToString(CultureInfo.InvariantCulture))
+                    .Append("  <color=#5F6771>|</color>  ")
+                    .Append(matches.Count.ToString(CultureInfo.InvariantCulture))
+                    .Append("<color=#5F6771>/</color>")
+                    .Append(records.Count.ToString(CultureInfo.InvariantCulture))
+                    .Append(" <color=#5F6771>tiles</color>");
+            }
             _summary!.text = Builder.ToString();
 
             // rows
@@ -274,6 +314,7 @@ namespace JustEnoughAccuracy
                 }
             }
             HideUnusedRows(limit);
+            ApplyRowHighlight();
 
             _contentRect!.sizeDelta = new Vector2(_rowWidth, limit * RowHeight);
             var viewportH = _viewportRect!.rect.height;
@@ -284,22 +325,41 @@ namespace JustEnoughAccuracy
         }
 
         /// <summary>
-        /// A single hit row was clicked: move the camera to that tile and draw a
-        /// hit-position marker on it (the previous selection's marker is replaced).
+        /// A single hit row was clicked: toggle its selection. Selecting moves
+        /// the camera to that tile and draws a hit-position marker on it (the
+        /// previous selection's marker is replaced); clicking the same row again
+        /// (or blank panel space) clears the selection and marker.
         /// </summary>
         private static void OnHitClicked(JudgementRecord record)
         {
             try
             {
                 if (record == null) return;
-                var pos = TilePosition(record.Tile);
-                if (pos == null)
+                if (record.Tile == _selectedTile)
+                {
+                    ClearSelection();
+                    return;
+                }
+                _selectedTile = record.Tile;
+                ApplyRowHighlight();
+                var floor = GetFloor(record.Tile);
+                if (floor == null)
                 {
                     Main.Handler?.Log($"[JEA][Previewer] No floor for tile {record.Tile}");
                     return;
                 }
-                MoveCameraTo(pos.Value);
-                HitMarker.Show(pos.Value);
+                MoveCameraTo(floor.transform.position);
+
+                if (record.BallPositions is { Count: > 0 })
+                {
+                    HitMarker.Show(record.BallPositions);
+                }
+                else
+                {
+                    // Old records (or non-scored tiles) fall back to the
+                    // geometric layout so we still draw something.
+                    HitMarker.Show(floor);
+                }
             }
             catch (Exception ex)
             {
@@ -307,17 +367,47 @@ namespace JustEnoughAccuracy
             }
         }
 
-        /// <summary>World position of a 1-based tile number, or null when the floor
-        /// doesn't exist (e.g. chart not loaded, or past the last floor).</summary>
-        private static Vector3? TilePosition(int tile)
+        /// <summary>Drop the current selection: no highlight, no hit marker.</summary>
+        public static void ClearSelection()
+        {
+            _selectedTile = -1;
+            HitMarker.Clear();
+            ApplyRowHighlight();
+        }
+
+        /// <summary>F3/Shift+F3 navigation target changed; select the target row.</summary>
+        private static void SelectRow(JudgementRecord record)
+        {
+            if (record == null) return;
+            _selectedTile = record.Tile;
+            ApplyRowHighlight();
+            var floor = GetFloor(record.Tile);
+            if (floor == null)
+            {
+                Main.Handler?.Log($"[JEA][Previewer] No floor for tile {record.Tile}");
+                return;
+            }
+            MoveCameraTo(floor.transform.position);
+            if (record.BallPositions is { Count: > 0 })
+                HitMarker.Show(record.BallPositions);
+            else
+                HitMarker.Show(floor);
+        }
+
+        /// <summary>Get a floor by 1-based tile number, or null.</summary>
+        private static scrFloor? GetFloor(int tile)
         {
             var floors = scrLevelMaker.instance?.listFloors;
             if (floors == null || tile < 1 || tile > floors.Count)
                 return null;
-            var floor = floors[tile - 1];
-            if (floor == null)
-                return null;
-            return floor.transform.position;
+            return floors[tile - 1];
+        }
+
+        /// <summary>World position of a 1-based tile number, or null when the floor
+        /// doesn't exist (e.g. chart not loaded, or past the last floor).</summary>
+        private static Vector3? TilePosition(int tile)
+        {
+            return GetFloor(tile)?.transform.position;
         }
 
         /// <summary>Point the relevant camera at a world position. In the editor the
@@ -376,8 +466,9 @@ namespace JustEnoughAccuracy
                 _ => "#FFFFFF"
             };
 
-            // Compact: #tile  time  margin  score  deviation. Extra columns
-            // (combo/Acc/Off/NEA) overflowed the panel width.
+            // Compact: #tile  time  margin  score  deviation°  ms.
+            // The ms delay (deviation converted at the hit's effective rate) is
+            // the most actionable value, so it goes last in a distinct colour.
             sb.Append("<color=#5F6771>#")
                 .Append(r.Tile.ToString(CultureInfo.InvariantCulture))
                 .Append("</color> <color=#AEB8C4>")
@@ -390,7 +481,9 @@ namespace JustEnoughAccuracy
                 .Append(Math.Floor(r.JeaTileScore).ToString(CultureInfo.InvariantCulture))
                 .Append("</color></b> <color=#5F6771>")
                 .Append(FormatDev(r.RawDeviationDeg))
-                .Append("°</color>");
+                .Append("°</color> <color=#7CE0B3>")
+                .Append(FormatDev(r.NormalizedDeviationDeg))
+                .Append("ms</color>");
         }
 
         private static string FormatDev(double deg)
@@ -399,12 +492,57 @@ namespace JustEnoughAccuracy
             return deg.ToString("0.##", CultureInfo.InvariantCulture);
         }
 
+        /// <summary>
+        /// Detail text for the summary line when a search narrows to a single
+        /// tile: tile, time, margin, score, deviation and ms delay.
+        /// </summary>
+        private static string SummaryForTile(JudgementRecord r)
+        {
+            var marginColor = r.Margin switch
+            {
+                HitMargin.Perfect or HitMargin.Auto => "#FFDA00",
+                HitMargin.EarlyPerfect or HitMargin.LatePerfect => "#7CE0B3",
+                HitMargin.VeryEarly or HitMargin.VeryLate => "#F3D98B",
+                HitMargin.TooEarly or HitMargin.TooLate => "#E08A7C",
+                HitMargin.FailMiss or HitMargin.FailOverload => "#FF6B6B",
+                HitMargin.Multipress or HitMargin.OverPress => "#FF8C5A",
+                _ => "#FFFFFF"
+            };
+            return "<color=#5F6771>#"
+                + r.Tile.ToString(CultureInfo.InvariantCulture)
+                + "</color> <b><color=" + marginColor + ">"
+                + r.Margin
+                + "</color></b> <b><color=#FFFFFFFF>"
+                + Math.Floor(r.JeaTileScore).ToString(CultureInfo.InvariantCulture)
+                + "</color></b> <color=#5F6771>"
+                + FormatDev(r.RawDeviationDeg) + "°"
+                + " · " + FormatDev(r.NormalizedDeviationDeg) + "ms"
+                + "</color> <color=#7CE0B3>x"
+                + r.Combo.ToString(CultureInfo.InvariantCulture)
+                + "</color>";
+        }
+
         private static void HideUnusedRows(int from)
         {
             for (var i = from; i < Rows.Count; i++)
             {
                 if (Rows[i].Root.activeSelf)
                     Rows[i].Root.SetActive(false);
+            }
+        }
+
+        /// <summary>Paint the selected row's background so the focus is visible.</summary>
+        private static void ApplyRowHighlight()
+        {
+            foreach (var row in Rows)
+            {
+                if (row.Root == null || !row.Root.activeSelf)
+                    continue;
+                var selected = row.Record != null && row.Record.Tile == _selectedTile;
+                var col = selected
+                    ? new Color(0.16f, 0.55f, 0.38f, 0.45f)
+                    : new Color(1f, 1f, 1f, 0.03f);
+                row.Image.color = col;
             }
         }
 
@@ -468,6 +606,9 @@ namespace JustEnoughAccuracy
 
             var drag = panelObject.AddComponent<PanelDrag>();
             drag.Setup(_panelRect, _canvas);
+            // Clicking blank panel space clears the current judgement selection.
+            var clearClick = panelObject.AddComponent<PreviewerBlankClick>();
+            clearClick.Setup(() => ClearSelection());
 
             _border = CreateChildImage(panelObject, "Border", _ringSprite!, new Color(1f, 1f, 1f, 0.90f));
             _border.type = Image.Type.Sliced;
@@ -577,6 +718,13 @@ namespace JustEnoughAccuracy
             _summary = CreateText(panelObject, "Summary", 19f);
             _summary.rectTransform.anchoredPosition = new Vector2(Padding, -(Padding * 0.7f + TitleHeight + 6f + SearchHeight + 8f));
             _summary.rectTransform.sizeDelta = new Vector2(PanelWidth - Padding * 2f, 24f);
+            // The summary can hold a lot (aggregate or a single tile's detail),
+            // so let it wrap/auto-size instead of spilling out of the panel.
+            _summary.enableAutoSizing = true;
+            _summary.fontSizeMin = 12f;
+            _summary.fontSizeMax = 19f;
+            _summary.textWrappingMode = TextWrappingModes.Normal;
+            _summary.overflowMode = TextOverflowModes.Truncate;
 
             // scroll viewport
             var viewportObj = new GameObject("Viewport", typeof(RectTransform));
@@ -646,6 +794,14 @@ namespace JustEnoughAccuracy
             var exportButton = exportObj.AddComponent<Button>();
             exportButton.targetGraphic = exportImage;
             exportButton.onClick.AddListener(ToggleExportMenu);
+
+            // navigation buttons (bottom-left): previous / next judgement.
+            // Labels mirror the hotkeys: Prev = Shift+F3, Next = F3.
+            const float navW = 200f;
+            MakeNavButton(panelObject, "Prev", Padding * 0.7f, navW, "previewer.prev",
+                () => Navigate(-1));
+            MakeNavButton(panelObject, "Next", Padding * 0.7f + navW + 10f, navW, "previewer.next",
+                () => Navigate(+1));
 
             // export format menu (pops up above the export button)
             var menuObj = new GameObject("ExportMenu", typeof(RectTransform));
@@ -736,8 +892,7 @@ namespace JustEnoughAccuracy
 
         private static void MakeMenuButton(GameObject menu, string name, float x, float y, float width, float height,
             string i18nKey, Action onClick)
-        {
-            var btnObj = new GameObject(name, typeof(RectTransform));
+        {            var btnObj = new GameObject(name, typeof(RectTransform));
             btnObj.transform.SetParent(menu.transform, false);
             var rect = (RectTransform)btnObj.transform;
             rect.anchorMin = new Vector2(0f, 1f);
@@ -763,13 +918,60 @@ namespace JustEnoughAccuracy
             button.onClick.AddListener(() => onClick());
         }
 
+        /// <summary>Bottom-left navigation button anchored to the panel's left edge.</summary>
+        private static void MakeNavButton(GameObject panel, string name, float x, float width, string i18nKey, Action onClick)
+        {
+            var btnObj = new GameObject(name, typeof(RectTransform));
+            btnObj.transform.SetParent(panel.transform, false);
+            var rect = (RectTransform)btnObj.transform;
+            rect.anchorMin = new Vector2(0f, 0f);
+            rect.anchorMax = new Vector2(0f, 0f);
+            rect.pivot = new Vector2(0f, 0f);
+            rect.anchoredPosition = new Vector2(x, Padding * 0.7f);
+            rect.sizeDelta = new Vector2(width, ButtonSize);
+            var image = btnObj.AddComponent<Image>();
+            image.sprite = _fillSprite;
+            image.type = Image.Type.Sliced;
+            image.color = new Color(0.16f, 0.27f, 0.42f, 0.9f);
+            var label2 = CreateText(btnObj, "T", 17f);
+            label2.text = "<b>" + JeI18n.Get(i18nKey) + "</b>";
+            _translatedLabels.Add((label2, i18nKey));
+            label2.rectTransform.anchorMin = Vector2.zero;
+            label2.rectTransform.anchorMax = Vector2.one;
+            label2.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            label2.rectTransform.offsetMin = Vector2.zero;
+            label2.rectTransform.offsetMax = Vector2.zero;
+            label2.alignment = TextAlignmentOptions.Center;
+            var button = btnObj.AddComponent<Button>();
+            button.targetGraphic = image;
+            button.onClick.AddListener(() => onClick());
+        }
+
+        /// <summary>Navigate from the current selection: +1 = next, -1 = previous.
+        /// Falls back to the first/last row when nothing is selected yet.</summary>
+        private static void Navigate(int direction)
+        {
+            if (_visibleMatches.Count == 0)
+                return;
+            var current = _visibleMatches.FindIndex(r => r.Tile == _selectedTile);
+            int target;
+            if (current < 0)
+                target = direction > 0 ? 0 : _visibleMatches.Count - 1;
+            else
+                target = current + direction;
+            if (target < 0)
+                target = _visibleMatches.Count - 1;
+            else if (target >= _visibleMatches.Count)
+                target = 0;
+            SelectRow(_visibleMatches[target]);
+            EnsureRowVisible(target);
+        }
+
         private static void ToggleExportMenu()
         {
             if (_exportMenu == null) return;
             _exportMenu.SetActive(!_exportMenu.activeSelf);
-        }
-
-        private static void MakeSeriesRow(GameObject menu, float y, string id, string i18nKey, string label, string colorHex)
+        }        private static void MakeSeriesRow(GameObject menu, float y, string id, string i18nKey, string label, string colorHex)
         {
             var rowObj = new GameObject("Row_" + id, typeof(RectTransform));
             rowObj.transform.SetParent(menu.transform, false);
@@ -896,7 +1098,6 @@ namespace JustEnoughAccuracy
                 rowImage.color = new Color(1f, 1f, 1f, 0.03f);
                 var button = rowObject.AddComponent<Button>();
                 button.targetGraphic = rowImage;
-
                 // separator: a thin line under every hit so rows read as one block each.
                 var sep = new GameObject("Separator", typeof(RectTransform));
                 sep.transform.SetParent(rowObject.transform, false);
@@ -922,7 +1123,7 @@ namespace JustEnoughAccuracy
                 text.alignment = TextAlignmentOptions.MidlineLeft;
 
                 rowObject.SetActive(false);
-                Rows.Add(new RowWidget { Root = rowObject, Rect = rect, Text = text, Button = button });
+                Rows.Add(new RowWidget { Root = rowObject, Rect = rect, Text = text, Button = button, Image = rowImage });
             }
             return Rows[index];
         }

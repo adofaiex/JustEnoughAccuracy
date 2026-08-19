@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using UnityEngine;
 
 namespace JustEnoughAccuracy
 {
@@ -14,10 +16,17 @@ namespace JustEnoughAccuracy
         /// <summary>Chart time (seconds) at the moment the key was judged.</summary>
         public double Timestamp { get; set; }
 
-        /// <summary>Raw angular deviation in degrees.</summary>
+        /// <summary>
+        /// World positions of every ball at the moment this tile was judged.
+        /// Drives the hit-position markers in the previewer. Empty for records
+        /// captured before this feature existed.
+        /// </summary>
+        public List<Vector3>? BallPositions { get; set; }
+
+        /// <summary>Raw angular deviation in degrees (signed: positive = late, negative = early).</summary>
         public double RawDeviationDeg { get; set; }
 
-        /// <summary>Deviation normalized to the reference BPM (degrees at ReferenceBpm).</summary>
+        /// <summary>Deviation as a time error in ms at the hit's effective rate (signed).</summary>
         public double NormalizedDeviationDeg { get; set; }
 
         /// <summary>JEA interpolated score for this tile (e.g. 97.3).</summary>

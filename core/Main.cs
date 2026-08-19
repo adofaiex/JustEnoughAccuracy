@@ -20,56 +20,31 @@ namespace JustEnoughAccuracy
             return true;
         }
 
-        private static bool _resultsWereVisible;
-        private static bool _sawWon;
-
         private static void OnGameUpdate()
         {
             if (!Settings.Enabled)
             {
                 JePreviewer.Close();
-                ResultsScreenButton.Hide();
+                PreviewerButton.Hide();
                 DeathMarker.Clear();
                 return;
             }
 
-            // The button is shown by a patch on DetailedResults.Show(); here we only
-            // decide when to hide it. Show() runs BEFORE ChangeState(Won) and
-            // currentState is only refreshed in scrController.Update(), so during
-            // the frame Show() fires the state is still stale — don't require Won
-            // until it has been observed at least once. Conversely, pressing Esc on
-            // the results screen leaves Won WITHOUT deactivating the GameObject
-            // (only the next level load does, scnGame) — so once Won was seen,
-            // leaving Won means the player left the results screen.
-            var ctl = scrController.instance;
-            var resultsActive = ctl != null
-                                && ctl.detailedResults != null
-                                && ctl.detailedResults.gameObject.activeSelf;
-            if (resultsActive && ctl!.currentState == States.Won)
-                _sawWon = true;
-            var resultsVisible = resultsActive && (!_sawWon || ctl!.currentState == States.Won);
-
-            if (!resultsVisible)
-            {
-                JePreviewer.Close();
-                ResultsScreenButton.Hide();
-                _sawWon = false;
-                // Leaving the results screen ends the run: wipe the data.
-                if (_resultsWereVisible)
-                    JudgementRecorder.Clear();
-            }
-            else if (!_resultsWereVisible)
-            {
-                Main.Handler?.Log($"[JEA][Main] resultsVisible became true (state={ctl?.currentState})");
-                // The player won (main game): no more death markers needed on this chart.
-                // In the editor, markers persist until a new chart is opened instead.
-                if (!ADOBase.isLevelEditor)
-                    DeathMarker.Clear();
-            }
-
-            _resultsWereVisible = resultsVisible;
+            // The previewer icon is persistent (sits next to the official
+            // difficulty selector) and its data survives Esc / results screens.
+            // The recorder is only wiped when a run actually restarts
+            // (scrMarginTracker_Reset) — not when leaving the results screen.
+            PreviewerButton.OnUpdate();
+            HitMarker.OnUpdate();
             DeathMarker.OnUpdate();
             JePreviewer.OnUpdate();
+
+            // Winning an official (non-editor) level clears death markers: the run
+            // is over and their positions are no longer relevant. In the editor,
+            // markers persist until a new chart is opened instead.
+            var ctl = scrController.instance;
+            if (ctl != null && ctl.currentState == States.Won && !ADOBase.isLevelEditor)
+                DeathMarker.Clear();
         }
 
         private static void OnToggle(bool value)

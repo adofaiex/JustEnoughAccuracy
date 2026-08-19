@@ -22,6 +22,8 @@ previewer:
   exportConfirm: "Export"
   exportCancel: "Cancel"
   noRecords: "No records"
+  prev: "Previous (Shift+F3)"
+  next: "Next (F3)"
 
 settings:
   enabled: "Enable JustEnoughAccuracy"
@@ -54,7 +56,7 @@ chart:
   neaScore: "NEA Score"
   acc: "Acc"
   xacc: "X-Acc"
-  dev: "Deviation°"
+  dev: "Deviation (ms)"
   finalAcc: "Final JEA"
   legendHint: "Click legend to toggle · Wheel to zoom · Drag to pan · Double-click to reset"
   statScore: "JEA Score"

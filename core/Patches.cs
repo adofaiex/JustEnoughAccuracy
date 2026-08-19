@@ -49,17 +49,8 @@ namespace JustEnoughAccuracy
             private static void OnShow()
             {
                 Main.Handler?.Log("[JEA][Patch] DetailedResults.Show() transpiler fired");
-                if (!Main.Settings.Enabled) return;
-                // Never let a JEA failure abort the official Show() mid-method —
-                // that would break the win sequence (last-tile unresponsive).
-                try
-                {
-                    ResultsScreenButton.Show();
-                }
-                catch (Exception ex)
-                {
-                    Main.Handler?.Error($"[JEA][Patch] ResultsScreenButton.Show failed: {ex}");
-                }
+                // The previewer icon is now attached via Harmony patches on the
+                // difficulty selectors — no action needed here.
             }
         }
 
@@ -134,9 +125,48 @@ namespace JustEnoughAccuracy
             {
                 var rad = __instance.cachedAngle - __instance.targetExitAngle;
                 if (!__instance.planetarySystem.isCW) rad = -rad;
-                JeaScore.CurrentBpm = __instance.conductor.bpm;
+
+                // Effective rate = BPM × speed × pitch. Pitch lives on an AudioSource
+                // field we can't reference without UnityEngine.AudioModule, so it
+                // is read through reflection instead.
+                float pitch = 1f;
+                try
+                {
+                    var songField = __instance.conductor.GetType().GetField("song");
+                    if (songField != null)
+                    {
+                        var song = songField.GetValue(__instance.conductor);
+                        if (song != null)
+                            pitch = (float)(song.GetType().GetProperty("pitch")?.GetValue(song) ?? 1f);
+                    }
+                }
+                catch { }
+
+                JeaScore.CurrentBpm = __instance.conductor.bpm *
+                    (float)__instance.planetarySystem.speed * pitch;
+                JeaScore.CurrentDeviationSignedDeg = rad * 180.0 / Math.PI;
                 JeaScore.CurrentDeviationDeg = Math.Abs(rad) * 180.0 / Math.PI;
-                JeaScore.TileScore = JeaScore.BaseScore(JeaScore.NormalizeDeviation(JeaScore.CurrentDeviationDeg));
+                JeaScore.TileScore = JeaScore.BaseScore(JeaScore.CurrentDeviationDeg);
+
+                // Capture every ball's position at this exact instant. At
+                // SwitchChosen the planets are still at the hit spot, whereas by
+                // the time the margin-tracker hook runs they've started moving.
+                try
+                {
+                    var pts = new List<Vector3>();
+                    var system = __instance.planetarySystem;
+                    if (system != null)
+                    {
+                        foreach (var p in system.planetList)
+                            if (p != null) pts.Add(p.transform.position);
+                    }
+                    JudgementRecorder.PendingBallPositions = pts;
+                }
+                catch (Exception ex)
+                {
+                    JudgementRecorder.PendingBallPositions = null;
+                    Main.Handler?.Error($"[JEA][Patch] SwitchChosen ball capture failed: {ex}");
+                }
             }
         }
 
@@ -155,7 +185,9 @@ namespace JustEnoughAccuracy
             private static void OnReset()
             {
                 JeaScore.Reset();
-                JudgementRecorder.Clear();
+                // JudgementRecorder data is intentionally NOT cleared here —
+                // scrMarginTracker.Reset fires on death, Esc exit, AND restart.
+                // We only clear on a fresh run start (scnEditor.Play patch).
             }
         }
 
@@ -216,14 +248,33 @@ namespace JustEnoughAccuracy
                 if (!Main.Settings.Enabled) return;
 
                 var isEmpty = JeaScore.LastOperation == JeaScore.LastOp.EmptyPress;
-                var rawDeg = JeaScore.CurrentDeviationDeg;
+                var rawDeg = JeaScore.CurrentDeviationSignedDeg;
                 var isTile = JeaScore.LastOperation == JeaScore.LastOp.Tile;
+
+                // Prefer the exact positions captured at SwitchChosen. Fall back
+                // to reading the planets now if that snapshot is missing.
+                var ballPositions = JudgementRecorder.PendingBallPositions;
+                JudgementRecorder.PendingBallPositions = null;
+                if (ballPositions == null || ballPositions.Count == 0)
+                {
+                    try
+                    {
+                        var system = scrController.instance?.planetarySystem;
+                        if (system != null)
+                        {
+                            ballPositions = new List<Vector3>();
+                            foreach (var p in system.planetList)
+                                if (p != null) ballPositions.Add(p.transform.position);
+                        }
+                    }
+                    catch { ballPositions = null; }
+                }
 
                 JudgementRecorder.Capture(
                     tile: scrController.instance.currentSeqID + 1,
                     timestamp: scrConductor.instance.songposition_minusi,
                     rawDevDeg: rawDeg,
-                    normalizedDevDeg: JeaScore.NormalizeDeviation(Math.Abs(rawDeg)),
+                    normalizedDevDeg: JeaScore.NormalizeDeviation(rawDeg),
                     jeaTileScore: JeaScore.TileScore,
                     jeaFinalTileScore: JeaScore.LastFinalTileScore,
                     jeaTotalScore: JeaScore.TotalScore,
@@ -232,7 +283,8 @@ namespace JustEnoughAccuracy
                     margin: hit,
                     acc: __instance.percentAcc,
                     xAcc: __instance.percentXAcc,
-                    isEmptyPress: isEmpty && !isTile);
+                    isEmptyPress: isEmpty && !isTile,
+                    ballPositions: ballPositions);
             }
         }
 
@@ -257,8 +309,9 @@ namespace JustEnoughAccuracy
 
         /// <summary>
         /// Leaving the editor's play mode (Esc) does NOT reset the controller state
-        /// machine nor deactivate detailedResults, so the results-button would linger.
-        /// Hide our UI the moment the editor returns to edit mode.
+        /// machine nor deactivate detailedResults. The JEA previewer now persists on
+        /// purpose (so the player can locate a tile after playback ends), so we only
+        /// hide the death markers here, not the previewer/button.
         /// </summary>
         [HarmonyPatch(typeof(scnEditor), nameof(scnEditor.SwitchToEditMode))]
         public static class scnEditor_SwitchToEditMode
@@ -268,8 +321,6 @@ namespace JustEnoughAccuracy
                 if (!Main.Settings.Enabled) return;
                 try
                 {
-                    JePreviewer.Close();
-                    ResultsScreenButton.Hide();
                     // Keep marker positions, just hide them while editing.
                     DeathMarker.Hide();
                 }
@@ -292,6 +343,8 @@ namespace JustEnoughAccuracy
                 if (!Main.Settings.Enabled) return;
                 try
                 {
+                    JudgementRecorder.Clear();
+                    HitMarker.Clear();
                     DeathMarker.Show();
                 }
                 catch (Exception ex)
@@ -318,6 +371,46 @@ namespace JustEnoughAccuracy
                 catch (Exception ex)
                 {
                     Main.Handler?.Error($"[JEA][Patch] scnEditor.OpenLevel DeathMarker.Clear failed: {ex}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Attach the JEA previewer icon next to the editor difficulty selector.
+        /// </summary>
+        [HarmonyPatch(typeof(EditorDifficultySelector), "OnEnable")]
+        public static class EditorDifficultySelector_OnEnable
+        {
+            public static void Postfix(EditorDifficultySelector __instance)
+            {
+                if (!Main.Settings.Enabled) return;
+                try
+                {
+                    PreviewerButton.EnsureAttached(__instance.selectorRectTransform);
+                }
+                catch (Exception ex)
+                {
+                    Main.Handler?.Error($"[JEA][Patch] EditorDifficultySelector attach failed: {ex}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Attach the JEA previewer icon next to the game HUD difficulty container.
+        /// </summary>
+        [HarmonyPatch(typeof(scrUIController), nameof(scrUIController.ShowDifficultyContainer))]
+        public static class scrUIController_ShowDifficultyContainer
+        {
+            public static void Postfix(scrUIController __instance)
+            {
+                if (!Main.Settings.Enabled) return;
+                try
+                {
+                    PreviewerButton.EnsureAttached(__instance.difficultyContainer);
+                }
+                catch (Exception ex)
+                {
+                    Main.Handler?.Error($"[JEA][Patch] ShowDifficultyContainer attach failed: {ex}");
                 }
             }
         }
