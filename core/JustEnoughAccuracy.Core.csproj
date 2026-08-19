@@ -8,9 +8,9 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <Description>Angle-level accuracy mod for ADOFAI.</Description>
-    <Company>JEA Dev</Company>
-    <Version>0.1.6</Version>
-    <Copyright>Copyright © 2026 JEA Dev</Copyright>
+    <Company>xbodwf</Company>
+    <Version>0.1.8</Version>
+    <Copyright>Copyright © 2026 xbodwf</Copyright>
     <OutputPath>..\bin\$(Configuration)\core\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <IsCoreProject>true</IsCoreProject>

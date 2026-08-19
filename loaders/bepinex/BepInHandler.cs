@@ -18,7 +18,7 @@ namespace JustEnoughAccuracy.Loaders
         }
 
         public string ModId => "JEA";
-        public string ModVersion => "0.1.6";
+        public string ModVersion => "0.1.8";
         public string ModPath => Paths.PluginPath;
 
         public void Log(string message) => _log.LogInfo(message);

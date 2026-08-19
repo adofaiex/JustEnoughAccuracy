@@ -1,6 +1,6 @@
 using MelonLoader;
 
-[assembly: MelonInfo(typeof(JustEnoughAccuracy.Loaders.AdofaiMelonMod), "JEA", "0.1.6", "JEA Dev")]
+[assembly: MelonInfo(typeof(JustEnoughAccuracy.Loaders.AdofaiMelonMod), "JEA", "0.1.8", "xbodwf")]
 [assembly: MelonGame("7th Beat Games", "A Dance of Fire and Ice")]
 
 namespace JustEnoughAccuracy.Loaders
