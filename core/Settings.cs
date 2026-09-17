@@ -19,5 +19,12 @@ namespace JustEnoughAccuracy
 
         /// <summary>Language code override (e.g. "en", "zh"); null = follow game language.</summary>
         public string? Language { get; set; }
+
+        /// <summary>
+        /// Hotkey that toggles the JEA settings window. Used by the BepInEx and
+        /// MelonLoader loaders (UMM provides its own UI + toggle). Format:
+        /// "Ctrl+F8", "Alt+O", "Shift+F9", or a bare key like "F8".
+        /// </summary>
+        public string PanelToggleHotkey { get; set; } = "Ctrl+F8";
     }
 }

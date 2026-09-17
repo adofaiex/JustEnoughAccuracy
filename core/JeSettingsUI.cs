@@ -73,7 +73,9 @@ namespace JustEnoughAccuracy
                             IridiumPreset.SwitchOption(sizes, s.ShowDeathMarkers,
                                 v => s.ShowDeathMarkers = v, "settings.deathMarkers"),
                             Separator(),
-                            IridiumPreset.IconText(sizes, IconStyle.Information, "settings.hint")
+                            IridiumPreset.IconText(sizes, IconStyle.Information, "settings.hint"),
+                            Separator(),
+                            IridiumPreset.IconTextFormatted(sizes, IconStyle.Information, "settings.panelHotkey", s.PanelToggleHotkey ?? "")
                         )
                     )
                 );

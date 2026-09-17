@@ -77,7 +77,7 @@ namespace JustEnoughAccuracy
                 }
 
                 var tileScore = JeaScore.TileScore;
-                if (Main.Settings.NoDisplayPerfect && __instance.hitMargin == HitMargin.Perfect)
+                if (Main.Settings.NoDisplayPerfect && HitMarginCompat.IsPerfect(__instance.hitMargin))
                 {
                     __instance.text.text = $"\u200B\u200B{(long)Math.Floor(tileScore)}\u200B\u200B";
                     return;
@@ -90,16 +90,12 @@ namespace JustEnoughAccuracy
                 }
 
                 // floored for the in-game hit text; the exact value goes to the recorder
-                double? score = __instance.hitMargin switch
-                {
-                    HitMargin.Multipress => null,
-                    HitMargin.OverPress => null,
-                    HitMargin.FailMiss => -100,
-                    HitMargin.FailOverload => -100,
-                    HitMargin.TooEarly => null,
-                    HitMargin.TooLate => null,
-                    _ => Math.Floor(tileScore)
-                };
+                double? score;
+                if (HitMarginCompat.IsEmptyPress(__instance.hitMargin)) score = null;
+                else if (HitMarginCompat.IsFail(__instance.hitMargin)) score = -100;
+                else if (HitMarginCompat.IsToo(__instance.hitMargin)) score = null;
+                else if (HitMarginCompat.IsNoop(__instance.hitMargin)) score = null;
+                else score = Math.Floor(tileScore);
 
                 if (score is null) return;
 
@@ -149,15 +145,16 @@ namespace JustEnoughAccuracy
 
                 // Anchor the score curve on the OFFICIAL margin boundaries at the
                 // current effective rate (respects difficulty, speed trial and
-                // the 45° Perfect / HITMARGIN_COUNTED Counted floors).
+                // the 45° Perfect / HITMARGIN_COUNTED Counted floors). The API
+                // signature changed in 3.4.0, so it is resolved via a shim.
                 try
                 {
                     var bpmTimesSpeed = (double)__instance.conductor.bpm *
                         (double)__instance.planetarySystem.speed;
-                    JeaScore.PerfectBoundaryDeg = scrMisc.GetAdjustedAngleBoundaryInDeg(
-                        HitMarginGeneral.Perfect, bpmTimesSpeed, pitch);
-                    JeaScore.CountedBoundaryDeg = scrMisc.GetAdjustedAngleBoundaryInDeg(
-                        HitMarginGeneral.Counted, bpmTimesSpeed, pitch);
+                    BoundaryCompat.GetOfficialBoundaries(bpmTimesSpeed, pitch,
+                        out var perfectDeg, out var countedDeg);
+                    JeaScore.PerfectBoundaryDeg = perfectDeg;
+                    JeaScore.CountedBoundaryDeg = countedDeg;
                 }
                 catch (Exception ex)
                 {
@@ -235,29 +232,21 @@ namespace JustEnoughAccuracy
                     return;
                 }
 
-                switch (hit)
+                if (HitMarginCompat.IsEmptyPress(hit) || HitMarginCompat.IsTooEarly(hit))
                 {
-                    case HitMargin.Multipress:
-                        JeaScore.AddEmptyPress();
-                        break;
-                    case HitMargin.OverPress:
-                        JeaScore.AddEmptyPress();
-                        break;
-                    case HitMargin.FailMiss:
-                        JeaScore.AddFail(false);
-                        break;
-                    case HitMargin.FailOverload:
-                        JeaScore.AddFail(true);
-                        break;
-                    case HitMargin.TooEarly:
-                        JeaScore.AddEmptyPress();
-                        break;
-                    case HitMargin.Auto:
-                        JeaScore.AddNoop();
-                        break;
-                    default:
-                        JeaScore.AddTile();
-                        break;
+                    JeaScore.AddEmptyPress();
+                }
+                else if (HitMarginCompat.IsFail(hit))
+                {
+                    JeaScore.AddFail(HitMarginCompat.IsFailOverload(hit));
+                }
+                else if (HitMarginCompat.IsNoop(hit))
+                {
+                    JeaScore.AddNoop();
+                }
+                else
+                {
+                    JeaScore.AddTile();
                 }
                 JeaScore.Cache();
             }

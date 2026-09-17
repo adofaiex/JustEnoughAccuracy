@@ -112,18 +112,7 @@ namespace JustEnoughAccuracy
         /// </summary>
         public static int? OfficialScoreFor(HitMargin margin)
         {
-            return margin switch
-            {
-                HitMargin.Perfect => 100,
-                HitMargin.Auto => 100,
-                HitMargin.EarlyPerfect => 75,
-                HitMargin.LatePerfect => 75,
-                HitMargin.VeryEarly => 40,
-                HitMargin.VeryLate => 40,
-                HitMargin.TooEarly => 20,
-                HitMargin.TooLate => 20,
-                _ => null
-            };
+            return HitMarginCompat.OfficialScore(margin);
         }
     }
 }

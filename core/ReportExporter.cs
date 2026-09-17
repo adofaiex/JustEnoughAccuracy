@@ -35,7 +35,7 @@ namespace JustEnoughAccuracy
                 sb.AppendLine("    RawDeviationDeg: " + FormatNum(r.RawDeviationDeg));
                 sb.AppendLine("    DeviationMs: " + FormatNum(r.NormalizedDeviationDeg));
                 sb.AppendLine("    NormalizedDeviationDeg: " + FormatNum(r.NormalizedDeviationDeg));
-                sb.AppendLine("    Margin: " + r.Margin);
+                sb.AppendLine("    Margin: " + HitMarginCompat.DisplayName(r.Margin));
                 sb.AppendLine("    Acc: " + FormatPct(r.Acc));
                 sb.AppendLine("    XAcc: " + FormatPct(r.XAcc));
                 sb.AppendLine("    OfficialScore: " + (r.OfficialScore?.ToString(CultureInfo.InvariantCulture) ?? "null"));
@@ -565,12 +565,14 @@ svg.addEventListener('dblclick',()=>{z0=0;z1=NS;rebuild()});
             sb.Append("</g>");
         }
 
-        /// <summary>Localized HitMargin name; falls back to the enum name when no i18n entry exists.</summary>
+        /// <summary>Localized HitMargin name; falls back to the enum name when no i18n entry exists.
+        /// The 3.4.0 perfect trio collapses to the classic "Perfect" name for stable exports.</summary>
         private static string MarginLabel(HitMargin margin)
         {
-            var key = "margin." + margin.ToString(CultureInfo.InvariantCulture);
+            var name = HitMarginCompat.DisplayName(margin);
+            var key = "margin." + name;
             var s = JeI18n.Get(key);
-            return s == key ? margin.ToString() : s;
+            return s == key ? name : s;
         }
 
         private static string HtmlEscape(string value)

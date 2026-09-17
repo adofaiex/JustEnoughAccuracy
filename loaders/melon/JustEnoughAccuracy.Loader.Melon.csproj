@@ -9,7 +9,7 @@
     <Nullable>enable</Nullable>
     <Description>Angle-level accuracy mod for ADOFAI.</Description>
     <Company>xbodwf</Company>
-    <Version>0.1.8</Version>
+    <Version>0.2.0</Version>
     <Copyright>Copyright © 2026 xbodwf</Copyright>
     <ModManagerDir>$(ProjectDir)../../lib/ModManager/</ModManagerDir>
     <OutputPath>..\..\bin\$(Configuration)\loaders\melon\</OutputPath>
@@ -41,6 +41,12 @@
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>$(ManagedAssembliesDir)\UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(ManagedAssembliesDir)\UnityEngine.IMGUIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(ManagedAssembliesDir)\UnityEngine.InputLegacyModule.dll</HintPath>
     </Reference>
     <Reference Include="Assembly-CSharp">
       <HintPath>$(ManagedAssembliesDir)\Assembly-CSharp.dll</HintPath>

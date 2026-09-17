@@ -440,7 +440,7 @@ namespace JustEnoughAccuracy
         {
             sb.Append(record.Tile.ToString(CultureInfo.InvariantCulture)).Append(' ')
                 .Append(ReportExporter.FormatTimestampPublic(record.Timestamp)).Append(' ')
-                .Append(record.Margin).Append(' ')
+                .Append(HitMarginCompat.DisplayName(record.Margin)).Append(' ')
                 .Append(Math.Floor(record.JeaTileScore).ToString(CultureInfo.InvariantCulture)).Append(' ')
                 .Append(Math.Floor(record.JeaFinalTileScore).ToString(CultureInfo.InvariantCulture)).Append(' ')
                 .Append(Math.Floor(record.JeaTotalScore).ToString(CultureInfo.InvariantCulture)).Append(' ')
@@ -454,17 +454,7 @@ namespace JustEnoughAccuracy
 
         private static void BuildRowText(StringBuilder sb, JudgementRecord r)
         {
-            var marginColor = r.Margin switch
-            {
-                HitMargin.Perfect => "#FFDA00",
-                HitMargin.Auto => "#FFDA00",
-                HitMargin.EarlyPerfect or HitMargin.LatePerfect => "#7CE0B3",
-                HitMargin.VeryEarly or HitMargin.VeryLate => "#F3D98B",
-                HitMargin.TooEarly or HitMargin.TooLate => "#E08A7C",
-                HitMargin.FailMiss or HitMargin.FailOverload => "#FF6B6B",
-                HitMargin.Multipress or HitMargin.OverPress => "#FF8C5A",
-                _ => "#FFFFFF"
-            };
+            var marginColor = HitMarginCompat.ColorHex(r.Margin);
 
             // Compact: #tile  time  margin  score  deviation°  ms.
             // The ms delay (deviation converted at the hit's effective rate) is
@@ -476,7 +466,7 @@ namespace JustEnoughAccuracy
                 .Append("</color> <b><color=")
                 .Append(marginColor)
                 .Append(">")
-                .Append(r.Margin)
+                .Append(HitMarginCompat.DisplayName(r.Margin))
                 .Append("</color></b> <b><color=#FFFFFFFF>")
                 .Append(Math.Floor(r.JeaTileScore).ToString(CultureInfo.InvariantCulture))
                 .Append("</color></b> <color=#5F6771>")
@@ -498,20 +488,11 @@ namespace JustEnoughAccuracy
         /// </summary>
         private static string SummaryForTile(JudgementRecord r)
         {
-            var marginColor = r.Margin switch
-            {
-                HitMargin.Perfect or HitMargin.Auto => "#FFDA00",
-                HitMargin.EarlyPerfect or HitMargin.LatePerfect => "#7CE0B3",
-                HitMargin.VeryEarly or HitMargin.VeryLate => "#F3D98B",
-                HitMargin.TooEarly or HitMargin.TooLate => "#E08A7C",
-                HitMargin.FailMiss or HitMargin.FailOverload => "#FF6B6B",
-                HitMargin.Multipress or HitMargin.OverPress => "#FF8C5A",
-                _ => "#FFFFFF"
-            };
+            var marginColor = HitMarginCompat.ColorHex(r.Margin);
             return "<color=#5F6771>#"
                 + r.Tile.ToString(CultureInfo.InvariantCulture)
                 + "</color> <b><color=" + marginColor + ">"
-                + r.Margin
+                + HitMarginCompat.DisplayName(r.Margin)
                 + "</color></b> <b><color=#FFFFFFFF>"
                 + Math.Floor(r.JeaTileScore).ToString(CultureInfo.InvariantCulture)
                 + "</color></b> <color=#5F6771>"

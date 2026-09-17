@@ -35,6 +35,7 @@ settings:
   displayResults: "在结算中显示摘要"
   deathMarkers: "显示死亡标记"
   hint: "计分模型（分段、罚分、容错）为固定设计，不提供配置。"
+  panelHotkey: "设置窗口快捷键（BepInEx / MelonLoader）：{0}"
 
 margin:
   TooEarly: "太早"
@@ -49,6 +50,8 @@ margin:
   FailOverload: "过载"
   Auto: "自动"
   OverPress: "空按"
+  Midspin: "中旋"
+  FailedFloor: "漏块"
 
 chart:
   jeaAcc: "JEA"

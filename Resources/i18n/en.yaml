@@ -34,6 +34,7 @@ settings:
   displayResults: "Show summary in detailed results"
   deathMarkers: "Show death markers"
   hint: "The scoring model (bands, penalties, tolerance) is fixed by design."
+  panelHotkey: "Settings window hotkey (BepInEx / MelonLoader): {0}"
 
 margin:
   TooEarly: "Too Early"
@@ -48,6 +49,8 @@ margin:
   FailOverload: "Overload"
   Auto: "Auto"
   OverPress: "Overpress"
+  Midspin: "Midspin"
+  FailedFloor: "Failed Floor"
 
 chart:
   jeaAcc: "JEA"

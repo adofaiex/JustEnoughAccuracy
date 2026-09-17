@@ -2,7 +2,7 @@ using BepInEx;
 
 namespace JustEnoughAccuracy.Loaders
 {
-    [BepInPlugin(ModId, "JustEnoughAccuracy", "0.1.8")]
+    [BepInPlugin(ModId, "JustEnoughAccuracy", "0.2.0")]
     [BepInProcess("A Dance of Fire and Ice.exe")]
     public class AdofaiBepInPlugin : BaseUnityPlugin
     {
